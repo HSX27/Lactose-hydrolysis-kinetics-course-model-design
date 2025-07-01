@@ -1,0 +1,6 @@
+# requirements.txt for 乳糖水解框架-2.py
+streamlit>=1.0.0
+numpy
+scipy
+matplotlib
+pandas
