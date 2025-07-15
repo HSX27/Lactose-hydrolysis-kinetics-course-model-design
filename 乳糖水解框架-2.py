@@ -1,6 +1,6 @@
 # 依赖项安装指南：
 # 请确保已安装以下库：
-# pip install streamlit numpy scipy matplotlib pandas
+# pip install streamlit numpy scipy matplotlib pandas openpyxl
 
 import streamlit as st
 import numpy as np
@@ -8,24 +8,28 @@ from scipy.integrate import odeint
 import matplotlib.pyplot as plt
 import pandas as pd
 import matplotlib.font_manager as fm
+from io import BytesIO
+import matplotlib as mpl
+
+# 设置全局字体以支持中文
+try:
+    # 尝试使用系统支持的中文字体
+    plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Microsoft YaHei', 'Arial Unicode MS', 'sans-serif']
+    plt.rcParams['axes.unicode_minus'] = False
+    zh_font = fm.FontProperties(fname=fm.findfont(fm.FontProperties(family=['SimHei', 'Microsoft YaHei'])))
+except:
+    # 如果找不到中文字体，使用默认字体
+    st.warning("无法找到中文字体，图表中文显示可能异常")
+    zh_font = fm.FontProperties()
 
 # 检查 Streamlit 版本
 try:
     import streamlit as st
+
     if st.__version__ < '1.0.0':
         st.warning("请升级 Streamlit 到最新版本以获得最佳体验。")
 except ImportError:
     st.error("Streamlit 未安装，请使用 'pip install streamlit' 安装。")
-
-# 尝试使用系统默认字体
-try:
-    zh_font = fm.FontProperties(family='SimSun')  # 尝试使用宋体
-    en_font = fm.FontProperties(family='Times New Roman')
-    plt.rcParams['axes.unicode_minus'] = False
-except:
-    st.warning("字体设置失败，图表可能无法正确显示")
-    zh_font = None
-    en_font = None
 
 st.set_page_config(page_title="乳糖水解动力学模拟 - 教学版", layout="wide")
 
@@ -47,7 +51,18 @@ translations = {
         - 通过交互式模拟，探索参数对乳糖水解的影响。
         """,
         "model_desc": "该模型模拟乳糖在β-半乳糖苷酶作用下的水解过程，考虑产物抑制效应（半乳糖抑制）。",
-        "equation": r"\frac{dL}{dt} = -\frac{V_{max} \cdot L}{K_m \cdot (1 + \frac{Gal}{K_i}) + L}",
+        "equation": r"""
+        **三种抑制类型的动力学方程：**
+
+        **1. 竞争性抑制：** 
+        $$ r = \frac{V_{max} \cdot L}{K_m \cdot (1 + \frac{Gal}{K_i}) + L} $$
+
+        **2. 非竞争性抑制：** 
+        $$ r = \frac{V_{max} \cdot L}{(K_m + L) \cdot (1 + \frac{Gal}{K_i})} $$
+
+        **3. 反竞争性抑制：** 
+        $$ r = \frac{V_{max} \cdot L}{K_m + L \cdot (1 + \frac{Gal}{K_i})} $$
+        """,
         "gal_desc": "其中 $Gal = L_0 - L$ 表示生成的半乳糖浓度",
         "reaction_params": "反应参数",
         "initial_lactose": "初始乳糖浓度 (mM) - 反应开始时的乳糖量",
@@ -67,15 +82,26 @@ translations = {
         - $K_i$: 产物抑制常数，表示半乳糖对酶的抑制强度（$K_i$ 越小，抑制越强）
 
         **微分方程推导：**
-        根据Michaelis-Menten动力学，反应速率 $v = \frac{V_{max} \cdot L}{K_m + L}$。加入产物抑制后，分母变为 $K_m \cdot (1 + \frac{Gal}{K_i}) + L$，反映半乳糖的竞争性抑制效应。
+        根据Michaelis-Menten动力学，反应速率 $v = \frac{V_{max} \cdot L}{K_m + L}$。加入产物抑制后，根据抑制类型不同，方程如下：
+        - **竞争性抑制：** $$ v = \frac{V_{max} \cdot L}{K_m \cdot (1 + \frac{Gal}{K_i}) + L} $$
+        - **非竞争性抑制：** $$ v = \frac{V_{max} \cdot L}{(K_m + L) \cdot (1 + \frac{Gal}{K_i})} $$
+        - **反竞争性抑制：** $$ v = \frac{V_{max} \cdot L}{K_m + L \cdot (1 + \frac{Gal}{K_i})} $$
         """,
-        "equation_desc": "该方程考虑了产物半乳糖对酶活的竞争性抑制。",
-        "inhibition_toggle": "启用产物抑制",
+        "equation_desc": "上述方程考虑了产物半乳糖对酶活的不同抑制机制。",
+        "inhibition_type": "产物抑制类型",
+        "competitive": "竞争性抑制",
+        "non_competitive": "非竞争性抑制",
+        "uncompetitive": "反竞争性抑制",
+        "inhibition_types_desc": {
+            "competitive": "抑制剂与底物竞争酶的活性位点",
+            "non_competitive": "抑制剂结合在酶的其他部位，降低酶活性",
+            "uncompetitive": "抑制剂只与酶-底物复合物结合"
+        },
         "compare_inhibition": "比较有无产物抑制的模拟结果",
         "final_lactose": "最终乳糖浓度",
         "final_galactose": "最终半乳糖浓度",
         "conversion_rate": "转化率",
-        "download_data": "下载模拟数据 (CSV)",
+        "download_data": "下载模拟数据 (Excel)",
         "rate_analysis": "反应速率分析",
         "max_rate": "最大反应速率: **{:.2f} mM/小时** (发生在 {:.1f} 小时)",
         "exercises": "练习题",
@@ -85,7 +111,14 @@ translations = {
         3. 使用模拟工具，找到使转化率达到90%所需的最短反应时间。
         """,
         "error": "计算错误: {}",
-        "copyright": "© 生物反应工程教学模拟器 | 基于Michaelis-Menten动力学与产物抑制模型"
+        "copyright": "© 生物反应工程教学模拟器 | 基于Michaelis-Menten动力学与产物抑制模型",
+        "lb_chart": "Lineweaver-Burk 图表",
+        "fixed_galactose": "固定半乳糖浓度 (mM)",
+        "lb_explanation": {
+            "competitive": "蓝色线条表示无抑制剂情况，遵循标准Michaelis-Menten动力学。红色线条表示固定半乳糖浓度下的竞争性抑制。注意两条线在y轴上的交点相同（绿色点），这表明竞争性抑制不影响 $V_{{max}}$，但改变了表观 $K_m$（与X轴负半轴的交点不同，蓝色和红色星号）。",
+            "non_competitive": "蓝色线条表示无抑制剂情况，遵循标准Michaelis-Menten动力学。红色线条表示固定半乳糖浓度下的非竞争性抑制。注意两条线在x轴上的交点相同（绿色星号），这表明非竞争性抑制不影响 $K_m$，但改变了表观 $V_{{max}}$（与y轴的交点不同）。",
+            "uncompetitive": "蓝色线条表示无抑制剂情况，遵循标准Michaelis-Menten动力学。红色线条表示固定半乳糖浓度下的反竞争性抑制。注意两条线平行（斜率相同），这表明反竞争性抑制同时改变了 $K_m$ 和 $V_{{max}}$，但斜率不变。"
+        }
     },
     "en": {
         "title": "🍼 Lactose Hydrolysis Kinetics Simulation - Educational Version",
@@ -99,7 +132,18 @@ translations = {
         - Investigate parameter effects on lactose hydrolysis through interactive simulation.
         """,
         "model_desc": "This model simulates lactose hydrolysis by β-galactosidase, considering product inhibition (galactose inhibition).",
-        "equation": r"\frac{dL}{dt} = -\frac{V_{max} \cdot L}{K_m \cdot (1 + \frac{Gal}{K_i}) + L}",
+        "equation": r"""
+        **Kinetic Equations for Three Inhibition Types:**
+
+        **1. Competitive Inhibition:** 
+        $$ r = \frac{V_{max} \cdot L}{K_m \cdot (1 + \frac{Gal}{K_i}) + L} $$
+
+        **2. Non-competitive Inhibition:** 
+        $$ r = \frac{V_{max} \cdot L}{(K_m + L) \cdot (1 + \frac{Gal}{K_i})} $$
+
+        **3. Uncompetitive Inhibition:** 
+        $$ r = \frac{V_{max} \cdot L}{K_m + L \cdot (1 + \frac{Gal}{K_i})} $$
+        """,
         "gal_desc": "where $Gal = L_0 - L$ represents the concentration of produced galactose",
         "reaction_params": "Reaction Parameters",
         "initial_lactose": "Initial Lactose Concentration (mM) - Amount of lactose at the start",
@@ -119,15 +163,26 @@ translations = {
         - $K_i$: Product inhibition constant, indicating galactose inhibition strength (lower $K_i$, stronger inhibition)
 
         **Differential Equation Derivation:**
-        Based on Michaelis-Menten kinetics, the reaction rate is $v = \frac{V_{max} \cdot L}{K_m + L}$。With product inhibition, the denominator becomes $K_m \cdot (1 + \frac{Gal}{K_i}) + L$, reflecting galactose’s competitive inhibition.
+        Based on Michaelis-Menten kinetics, the reaction rate is $v = \frac{V_{max} \cdot L}{K_m + L}$。With product inhibition, the equation varies by inhibition type:
+        - **Competitive Inhibition:** $$ v = \frac{V_{max} \cdot L}{K_m \cdot (1 + \frac{Gal}{K_i}) + L} $$
+        - **Non-competitive Inhibition:** $$ v = \frac{V_{max} \cdot L}{(K_m + L) \cdot (1 + \frac{Gal}{K_i})} $$
+        - **Uncompetitive Inhibition:** $$ v = \frac{V_{max} \cdot L}{K_m + L \cdot (1 + \frac{Gal}{K_i})} $$
         """,
-        "equation_desc": "This equation accounts for the competitive inhibition of the enzyme by the product galactose.",
-        "inhibition_toggle": "Enable Product Inhibition",
+        "equation_desc": "These equations account for different inhibition mechanisms of the enzyme by the product galactose.",
+        "inhibition_type": "Product Inhibition Type",
+        "competitive": "Competitive Inhibition",
+        "non_competitive": "Non-competitive Inhibition",
+        "uncompetitive": "Uncompetitive Inhibition",
+        "inhibition_types_desc": {
+            "competitive": "Inhibitor competes with substrate for active site",
+            "non_competitive": "Inhibitor binds to enzyme at different site, reducing activity",
+            "uncompetitive": "Inhibitor binds only to enzyme-substrate complex"
+        },
         "compare_inhibition": "Compare Simulation with and without Product Inhibition",
         "final_lactose": "Final Lactose Concentration",
         "final_galactose": "Final Galactose Concentration",
         "conversion_rate": "Conversion Rate",
-        "download_data": "Download Simulation Data (CSV)",
+        "download_data": "Download Simulation Data (Excel)",
         "rate_analysis": "Reaction Rate Analysis",
         "max_rate": "Maximum Reaction Rate: **{:.2f} mM/hour** (occurs at {:.1f} hours)",
         "exercises": "Exercises",
@@ -137,7 +192,14 @@ translations = {
         3. Use the tool to find the shortest reaction time needed for a 90% conversion rate.
         """,
         "error": "Calculation Error: {}",
-        "copyright": "© Bioreaction Engineering Educational Simulator | Based on Michaelis-Menten Kinetics with Product Inhibition Model"
+        "copyright": "© Bioreaction Engineering Educational Simulator | Based on Michaelis-Menten Kinetics with Product Inhibition Model",
+        "lb_chart": "Lineweaver-Burk Plot",
+        "fixed_galactose": "Fixed Galactose Concentration (mM)",
+        "lb_explanation": {
+            "competitive": "Blue line represents no inhibitor case, following standard Michaelis-Menten kinetics. Red line represents competitive inhibition at fixed galactose concentration. Note that both lines intersect at the same point on the y-axis (green point), indicating that competitive inhibition does not affect $V_{{max}}$, but changes the apparent $K_m$ (different intercepts on the negative x-axis, blue and red stars).",
+            "non_competitive": "Blue line represents no inhibitor case, following standard Michaelis-Menten kinetics. Red line represents non-competitive inhibition at fixed galactose concentration. Note that both lines intersect at the same point on the x-axis (green star), indicating that non-competitive inhibition does not affect $K_m$, but changes the apparent $V_{{max}}$ (different intercepts on the y-axis).",
+            "uncompetitive": "Blue line represents no inhibitor case, following standard Michaelis-Menten kinetics. Red line represents uncompetitive inhibition at fixed galactose concentration. Note that both lines are parallel (same slope), indicating that uncompetitive inhibition changes both $K_m$ and $V_{{max}}$, but the slope remains constant."
+        }
     }
 }
 
@@ -146,9 +208,29 @@ t = translations[lang]
 st.title(t["title"])
 st.markdown(t["intro"])
 
+# 在侧边栏添加抑制类型选择
+inhibition_types = st.sidebar.multiselect(
+    t["inhibition_type"],
+    options=[t["competitive"], t["non_competitive"], t["uncompetitive"]],
+    default=[t["competitive"], t["non_competitive"], t["uncompetitive"]],
+    help="选择要模拟的抑制类型"
+)
+
+# 添加抑制类型描述
+if lang == "zh":
+    st.sidebar.markdown("**抑制类型说明:**")
+    st.sidebar.markdown(f"- **{t['competitive']}**: {t['inhibition_types_desc']['competitive']}")
+    st.sidebar.markdown(f"- **{t['non_competitive']}**: {t['inhibition_types_desc']['non_competitive']}")
+    st.sidebar.markdown(f"- **{t['uncompetitive']}**: {t['inhibition_types_desc']['uncompetitive']}")
+else:
+    st.sidebar.markdown("**Inhibition Type Descriptions:**")
+    st.sidebar.markdown(f"- **{t['competitive']}**: {t['inhibition_types_desc']['competitive']}")
+    st.sidebar.markdown(f"- **{t['non_competitive']}**: {t['inhibition_types_desc']['non_competitive']}")
+    st.sidebar.markdown(f"- **{t['uncompetitive']}**: {t['inhibition_types_desc']['uncompetitive']}")
+
 # 主界面
 st.markdown(t["model_desc"])
-st.latex(t["equation"])
+st.markdown(t["equation"])  # 显示三种抑制类型的方程
 st.markdown(t["gal_desc"])
 
 # 创建两列布局
@@ -191,14 +273,12 @@ with col2:
         step=0.1,
         help="米氏常数 (mM)，表示酶对底物的亲和力"
     )
-    inhibition_enabled = st.checkbox(t["inhibition_toggle"], value=True)
     Ki = st.slider(
         label=t["ki"],
         min_value=0.1,
         max_value=50.0,
         value=10.0,
         step=0.1,
-        disabled=not inhibition_enabled,
         help="抑制常数 (mM)，表示半乳糖的抑制强度"
     )
     steps = st.slider(
@@ -213,205 +293,351 @@ with col2:
 # 理论背景
 with st.expander(t["theory"]):
     st.markdown(t["theory_content"])
-    st.latex(t["equation"])
     st.markdown(t["equation_desc"])
 
-# 模拟函数
+
+# 模拟函数 - 修改为支持多种抑制类型
 @st.cache_data
-def solve_model(L0, Vmax, Km, Ki, t_max, steps, inhibition=True):
-    if L0 <= 0 or Vmax <= 0 or Km <= 0 or (inhibition and Ki <= 0):
+def solve_model(L0, Vmax, Km, Ki, t_max, steps, inhibition_type):
+    if L0 <= 0 or Vmax <= 0 or Km <= 0 or Ki <= 0:
         raise ValueError("参数必须为正数")
     t_min = np.linspace(0, t_max * 60, steps)
-    if not inhibition:
-        Ki = 1e6  # 模拟无抑制情况
-    sol = odeint(model, L0, t_min, args=(Vmax, Km, Ki, L0))
+    sol = odeint(model, L0, t_min, args=(Vmax, Km, Ki, L0, inhibition_type))
     L = sol[:, 0]
     Gal = np.maximum(L0 - L, 0)
     t_hour = t_min / 60
     rates = np.abs(np.gradient(L, t_hour))
     return t_hour, L, Gal, rates
 
-def model(L, t, Vmax, Km, Ki, L0):
+
+def model(L, t, Vmax, Km, Ki, L0, inhibition_type):
     L = max(L, 1e-6)
     Gal = L0 - L
-    denominator = Km * (1 + Gal / Ki) + L
+
+    # 根据抑制类型选择不同的动力学方程
+    if inhibition_type == "competitive":
+        denominator = Km * (1 + Gal / Ki) + L
+    elif inhibition_type == "non_competitive":
+        denominator = (Km + L) * (1 + Gal / Ki)
+    elif inhibition_type == "uncompetitive":
+        denominator = Km + L * (1 + Gal / Ki)
+    else:
+        denominator = Km + L  # 无抑制
+
     dLdt = -Vmax * L / denominator
     return dLdt
 
+
 try:
     Vmax = E
-    t_hour, L, Gal, rates = solve_model(L0, Vmax, Km, Ki, t_max, steps, inhibition=inhibition_enabled)
-    conversion = (1 - L[-1] / L0) * 100
+    # 创建颜色映射
+    colors = {
+        "competitive": '#4E6691',
+        "non_competitive": '#4D8B31',
+        "uncompetitive": '#B8474D',
+        "no_inhibition": '#808080'
+    }
 
     # 可视化
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(t_hour, L, color='#4E6691', linewidth=2.5, label=f"{t['final_lactose']}: {L[-1]:.1f} mM")
-    ax.plot(t_hour, Gal, color='#B8474D', linewidth=2.5, label=f"{t['final_galactose']}: {Gal[-1]:.1f} mM")
 
-    # 比较有无抑制
-    if st.checkbox(t["compare_inhibition"]):
-        t_hour_no_inh, L_no_inh, Gal_no_inh, rates_no_inh = solve_model(L0, Vmax, Km, Ki, t_max, steps, inhibition=False)
-        ax.plot(t_hour_no_inh, L_no_inh, 'b--', label="Lactose (No Inhibition)")
-        ax.plot(t_hour_no_inh, Gal_no_inh, 'r--', label="Galactose (No Inhibition)")
+    # 存储所有模拟结果
+    all_results = {}
 
-    ax.annotate(f'{conversion:.1f}% {t["conversion_rate"]}',
-                xy=(t_hour[-1], Gal[-1]),
-                xytext=(t_hour[-1] - 1, Gal[-1] + 0.05 * L0),
-                arrowprops=dict(arrowstyle='->', color='green'),
-                fontsize=12, color='green', fontproperties=zh_font if lang == "zh" else en_font)
-    ax.set_xlabel("Time (hours)", fontsize=12, fontproperties=en_font)
-    ax.set_ylabel("Concentration (mM)", fontsize=12, fontproperties=en_font)
-    ax.set_title("Lactose Hydrolysis Kinetics", fontsize=14, fontproperties=en_font)
+    # 处理无抑制情况
+    compare_inhibition = True  # 始终显示无抑制情况
+    t_hour_no_inh, L_no_inh, Gal_no_inh, rates_no_inh = solve_model(L0, Vmax, Km, Ki, t_max, steps, "no_inhibition")
+    all_results["no_inhibition"] = (t_hour_no_inh, L_no_inh, Gal_no_inh, rates_no_inh)
+    ax.plot(t_hour_no_inh, L_no_inh, '--', color=colors["no_inhibition"], linewidth=2.5,
+            label=f"乳糖 (无抑制)" if lang == "zh" else "Lactose (No Inhibition)")
+    ax.plot(t_hour_no_inh, Gal_no_inh, '--', color='#FF7F0E', linewidth=2.5,
+            label=f"半乳糖 (无抑制)" if lang == "zh" else "Galactose (No Inhibition)")
+
+    # 处理选中的抑制类型
+    for itype in inhibition_types:
+        # 将显示名称映射到内部标识符
+        if itype == t["competitive"]:
+            key = "competitive"
+            label_prefix = "竞争性" if lang == "zh" else "Competitive"
+        elif itype == t["non_competitive"]:
+            key = "non_competitive"
+            label_prefix = "非竞争性" if lang == "zh" else "Non-competitive"
+        elif itype == t["uncompetitive"]:
+            key = "uncompetitive"
+            label_prefix = "反竞争性" if lang == "zh" else "Uncompetitive"
+        else:
+            continue
+
+        t_hour, L, Gal, rates = solve_model(L0, Vmax, Km, Ki, t_max, steps, key)
+        all_results[key] = (t_hour, L, Gal, rates)
+
+        # 绘制乳糖和半乳糖曲线
+        ax.plot(t_hour, L, color=colors[key], linewidth=2.5,
+                label=f"乳糖 ({label_prefix}抑制)" if lang == "zh" else f"Lactose ({label_prefix} Inhibition)")
+        ax.plot(t_hour, Gal, color=colors[key], linestyle=':', linewidth=2.5,
+                label=f"半乳糖 ({label_prefix}抑制)" if lang == "zh" else f"Galactose ({label_prefix} Inhibition)")
+
+        # 添加转化率标注
+        conversion = (1 - L[-1] / L0) * 100
+        ax.annotate(f'{conversion:.1f}% {t["conversion_rate"]}',
+                    xy=(t_hour[-1], Gal[-1]),
+                    xytext=(t_hour[-1] - 0.2, Gal[-1] + 0.05 * L0),
+                    arrowprops=dict(arrowstyle='->', color=colors[key]),
+                    fontsize=10, color=colors[key], fontproperties=zh_font if lang == "zh" else None)
+
+    ax.set_xlabel("时间 (小时)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+    ax.set_ylabel("浓度 (mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+    title = "乳糖水解动力学" if lang == "zh" else "Lactose Hydrolysis Kinetics"
+    ax.set_title(title, fontsize=14, fontproperties=zh_font if lang == "zh" else None)
     ax.grid(True, linestyle='--', alpha=0.7)
-    ax.legend(loc='best', fontsize=12, prop=zh_font if lang == "zh" else en_font)
+    ax.legend(loc='best', fontsize=10, prop=zh_font if lang == "zh" else None)
     ax.set_xlim([0, t_max])
     ax.set_ylim([0, L0 * 1.1])
     for spine in ax.spines.values():
         spine.set_linewidth(2.5)
     st.pyplot(fig)
 
-    # 关键指标
-    col1, col2, col3 = st.columns(3)
-    col1.metric(t["final_lactose"], f"{L[-1]:.1f} mM")
-    col2.metric(t["final_galactose"], f"{Gal[-1]:.1f} mM")
-    col3.metric(t["conversion_rate"], f"{conversion:.1f}%")
+    # 关键指标 - 显示第一个抑制类型的结果
+    if all_results:
+        # 使用第一个抑制类型的结果（如果有）
+        if inhibition_types:
+            key = "competitive" if t["competitive"] in inhibition_types else list(all_results.keys())[1]
+            t_hour, L, Gal, rates = all_results[key]
+        else:
+            key = "no_inhibition"
+            t_hour, L, Gal, rates = all_results[key]
 
-    # 数据下载
-    df = pd.DataFrame({'Time (hours)': t_hour, 'Lactose (mM)': L, 'Galactose (mM)': Gal, 'Reaction Rate (mM/hour)': rates})
-    csv = df.to_csv(index=False).encode('utf-8-sig')  # 支持中文
-    st.download_button(label=t["download_data"], data=csv, file_name='lactose_hydrolysis_data.csv', mime='text/csv')
+        conversion = (1 - L[-1] / L0) * 100
 
-    # 反应速率分析
+        col1, col2, col3 = st.columns(3)
+        col1.metric(t["final_lactose"], f"{L[-1]:.1f} mM")
+        col2.metric(t["final_galactose"], f"{Gal[-1]:.1f} mM")
+        col3.metric(t["conversion_rate"], f"{conversion:.1f}%")
+
+    # 数据下载 - 包含所有情况的数据
+    if all_results:
+        # 创建Excel文件
+        from openpyxl import Workbook
+        from openpyxl.utils.dataframe import dataframe_to_rows
+
+        wb = Workbook()
+        # 移除默认创建的工作表
+        if 'Sheet' in wb.sheetnames:
+            del wb['Sheet']
+
+        # 为每种情况添加工作表
+        for inhibition_type, (t_hour, L, Gal, rates) in all_results.items():
+            # 根据抑制类型确定工作表名称
+            if inhibition_type == "no_inhibition":
+                sheet_name = "无抑制" if lang == "zh" else "No Inhibition"
+            elif inhibition_type == "competitive":
+                sheet_name = "竞争性抑制" if lang == "zh" else "Competitive"
+            elif inhibition_type == "non_competitive":
+                sheet_name = "非竞争性抑制" if lang == "zh" else "Non-competitive"
+            elif inhibition_type == "uncompetitive":
+                sheet_name = "反竞争性抑制" if lang == "zh" else "Uncompetitive"
+            else:
+                sheet_name = inhibition_type
+
+            # 截断工作表名称（Excel限制31字符）
+            sheet_name = sheet_name[:30]
+
+            ws = wb.create_sheet(title=sheet_name)
+
+            # 创建DataFrame
+            if lang == "zh":
+                df = pd.DataFrame({
+                    '时间 (小时)': t_hour,
+                    '乳糖浓度 (mM)': L,
+                    '半乳糖浓度 (mM)': Gal,
+                    '反应速率 (mM/小时)': rates
+                })
+            else:
+                df = pd.DataFrame({
+                    'Time (hours)': t_hour,
+                    'Lactose (mM)': L,
+                    'Galactose (mM)': Gal,
+                    'Reaction Rate (mM/hour)': rates
+                })
+
+            # 将数据写入工作表
+            for r in dataframe_to_rows(df, index=False, header=True):
+                ws.append(r)
+
+        # 保存Excel文件
+        excel_buffer = BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+
+        # 提供下载按钮
+        st.download_button(
+            label=t["download_data"],
+            data=excel_buffer,
+            file_name='lactose_hydrolysis_data.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+    # 反应速率分析 - 使用第一个抑制类型的结果
     st.subheader(t["rate_analysis"])
-    fig2, ax2 = plt.subplots(figsize=(10, 6))
+    if all_results and inhibition_types:
+        key = "competitive" if t["competitive"] in inhibition_types else list(all_results.keys())[1]
+        t_hour, L, Gal, rates = all_results[key]
 
-    # 首先绘制有抑制曲线
-    ax2.plot(L, rates, color='#4E6691', linewidth=2.5, label="With Inhibition")
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
+        ax2.plot(L, rates, color=colors[key], linewidth=2.5,
+                 label="有抑制" if lang == "zh" else "With Inhibition")
 
-    # 检查是否显示无抑制曲线
-    show_inhibition_comparison = st.checkbox(t["compare_inhibition"], key="rate_compare")
-    if show_inhibition_comparison:
-        # 计算无抑制曲线数据
-        t_hour_no_inh, L_no_inh, Gal_no_inh, rates_no_inh = solve_model(L0, Vmax, Km, Ki, t_max, steps, inhibition=False)
+        if "no_inhibition" in all_results:
+            _, L_no_inh, _, rates_no_inh = all_results["no_inhibition"]
+            ax2.plot(L_no_inh, rates_no_inh, 'b--', linewidth=2.5,
+                     label="无抑制" if lang == "zh" else "No Inhibition")
 
-        # 绘制无抑制曲线
-        ax2.plot(L_no_inh, rates_no_inh, 'b--', linewidth=2.5, label="No Inhibition")
+        # 找到最大反应速率及其发生时间
+        max_rate_idx = np.argmax(rates)
+        max_rate = rates[max_rate_idx]
+        max_rate_time = t_hour[max_rate_idx]
 
-        # 使用无抑制曲线数据进行标注
-        substrate = L_no_inh
-        rate_vals = rates_no_inh
+        # 标注最大速率
+        ax2.annotate(f'最大速率: {max_rate:.2f} mM/h' if lang == "zh" else f'Max rate: {max_rate:.2f} mM/h',
+                     xy=(L[max_rate_idx], max_rate),
+                     xytext=(L[max_rate_idx] + 0.05 * L0, max_rate * 1.1),
+                     arrowprops=dict(arrowstyle='->', color='red'),
+                     fontsize=10, fontproperties=zh_font if lang == "zh" else None)
 
-        # 计算最大反应速率及其位置
-        r_max = rate_vals.max()
-        max_idx = np.argmax(rate_vals)
-        max_substrate = substrate[max_idx]
+        ax2.set_xlabel("底物浓度 L (mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+        ax2.set_ylabel("反应速率 (mM/小时)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+        title = f"反应速率 vs. 底物浓度" if lang == "zh" else "Reaction Rate vs. Substrate Concentration"
+        ax2.set_title(title, fontsize=14, fontproperties=zh_font if lang == "zh" else None)
+        ax2.grid(True, linestyle='--', alpha=0.7)
+        ax2.legend(loc='best', prop=zh_font if lang == "zh" else None)
+        ax2.set_xlim([0, L0])
+        ax2.set_ylim([0, max(rates) * 1.2])
 
-        # 添加最大速率标注
-        ax2.axhline(y=r_max, color='gray', linestyle='--', linewidth=1.5, alpha=0.7)
-        ax2.text(0.02 * L0, r_max * 1.02, r'$r_{max} = k_2 \cdot C_{E0}$',
-                 fontsize=12, color='gray', verticalalignment='bottom')
+        for spine in ax2.spines.values():
+            spine.set_linewidth(2.5)
+        st.pyplot(fig2)
 
-        # 找到速率等于最大速率一半的点
-        half_max = r_max / 2
-        half_idx = np.argmin(np.abs(rate_vals - half_max))
-        half_substrate = substrate[half_idx]
-
-        # 添加半速率点标注
-        ax2.plot(half_substrate, half_max, 'go', markersize=8)
-        ax2.text(half_substrate * 1.02, half_max * 1.05, r'$r = r_{max} / 2$',
-                 fontsize=12, color='green')
-
-        # 添加垂直线和Km标注
-        ax2.plot([half_substrate, half_substrate], [0, half_max], 'g--', linewidth=1.5, alpha=0.7)
-        ax2.text(half_substrate, -0.05 * r_max, r'$C_s = K_m$',
-                 fontsize=12, color='green', horizontalalignment='center', verticalalignment='top')
-
-        # 设置坐标轴范围
-        ax2.set_ylim([0, r_max * 1.2])
-        if half_substrate < 0.1 * L0:
-            ax2.set_ylim(bottom=-0.1 * r_max)
-    else:
-        # 如果不显示无抑制曲线，只设置基础Y轴范围
-        ax2.set_ylim([0, rates.max() * 1.2])
-
-    ax2.set_xlabel("Substrate Concentration L (mM)", fontsize=12, fontproperties=en_font)
-    ax2.set_ylabel("Reaction Rate (mM/hour)", fontsize=12, fontproperties=en_font)
-    ax2.set_title("Reaction Rate vs. Substrate Concentration", fontsize=14, fontproperties=en_font)
-    ax2.grid(True, linestyle='--', alpha=0.7)
-    ax2.legend(loc='best', prop=zh_font if lang == "zh" else en_font)
-    ax2.set_xlim([0, L0])
-
-    for spine in ax2.spines.values():
-        spine.set_linewidth(2.5)
-    st.pyplot(fig2)
+        # 显示最大速率信息
+        st.markdown(t["max_rate"].format(max_rate, max_rate_time))
 
     # Lineweaver-Burk 图表
-    st.subheader("Lineweaver-Burk 图表")
-    Gal_fixed = st.slider("竞争性抑制中的固定半乳糖浓度 (mM)", 0.0, 200.0, 100.0)
-    S_range = np.linspace(1, 500, 20)
-    v_no_inh = Vmax * S_range / (Km + S_range)
-    v_inh = Vmax * S_range / (Km * (1 + Gal_fixed / Ki) + S_range)
+    st.subheader(t["lb_chart"])
+    if all_results and inhibition_types:
+        key = "competitive" if t["competitive"] in inhibition_types else list(all_results.keys())[1]
 
-    # 计算1/[S]和1/v
-    inv_S = 1 / S_range
-    inv_v_no_inh = 1 / v_no_inh
-    inv_v_inh = 1 / v_inh
+        Gal_fixed = st.slider(t["fixed_galactose"], 0.0, 200.0, 100.0)
+        S_range = np.linspace(1, 500, 20)
 
-    fig_lb, ax_lb = plt.subplots(figsize=(10, 6))
-    p_no_inh = np.polyfit(inv_S, inv_v_no_inh, 1)
-    x_fit_no_inh = np.linspace(-0.05, max(inv_S), 100)
-    y_fit_no_inh = np.polyval(p_no_inh, x_fit_no_inh)
-    ax_lb.plot(x_fit_no_inh, y_fit_no_inh, color='#4E6691', linewidth=2.5, label="无抑制剂")
+        if key == "competitive":
+            v_no_inh = Vmax * S_range / (Km + S_range)
+            v_inh = Vmax * S_range / (Km * (1 + Gal_fixed / Ki) + S_range)
+        elif key == "non_competitive":
+            v_no_inh = Vmax * S_range / (Km + S_range)
+            v_inh = Vmax * S_range / ((Km + S_range) * (1 + Gal_fixed / Ki))
+        else:  # uncompetitive
+            v_no_inh = Vmax * S_range / (Km + S_range)
+            v_inh = Vmax * S_range / (Km + S_range * (1 + Gal_fixed / Ki))
 
-    p_inh = np.polyfit(inv_S, inv_v_inh, 1)
-    x_fit_inh = np.linspace(-0.05, max(inv_S), 100)
-    y_fit_inh = np.polyval(p_inh, x_fit_inh)
-    ax_lb.plot(x_fit_inh, y_fit_inh, color='#B8474D', linewidth=2.5, label="竞争性抑制")
+        # 计算1/[S]和1/v
+        inv_S = 1 / S_range
+        inv_v_no_inh = 1 / v_no_inh
+        inv_v_inh = 1 / v_inh
 
-    ax_lb.set_xlim(-0.05, 0.1)
-    slope_no_inh = p_no_inh[0]
-    x_range = 0.1 - (-0.05)
-    y_max = x_range * slope_no_inh
-    ax_lb.set_ylim(0, y_max * 1.2)
+        fig_lb, ax_lb = plt.subplots(figsize=(10, 6))
+        p_no_inh = np.polyfit(inv_S, inv_v_no_inh, 1)
+        x_fit_no_inh = np.linspace(-0.05, max(inv_S), 100)
+        y_fit_no_inh = np.polyval(p_no_inh, x_fit_no_inh)
+        ax_lb.plot(x_fit_no_inh, y_fit_no_inh, color='#4E6691', linewidth=2.5,
+                   label="无抑制剂" if lang == "zh" else "No Inhibitor")
 
-    y_intercept = p_no_inh[1]
-    ax_lb.plot([0, 0], [0, y_intercept], 'g--', linewidth=2, alpha=0.7)
-    ax_lb.plot(0, y_intercept, 'go', markersize=8)
+        p_inh = np.polyfit(inv_S, inv_v_inh, 1)
+        x_fit_inh = np.linspace(-0.05, max(inv_S), 100)
+        y_fit_inh = np.polyval(p_inh, x_fit_inh)
+        ax_lb.plot(x_fit_inh, y_fit_inh, color='#B8474D', linewidth=2.5,
+                   label=f"{t[key]}抑制" if lang == "zh" else f"{key.capitalize()} Inhibition")
 
-    # 使用箭头标注 "1/r_{max}"，箭头指向绿色虚线中间
-    ax_lb.annotate(r'$1 / r_{max}$', xy=(0, y_intercept / 2), xytext=(0.02, y_intercept / 2 + 0.02),
-                   arrowprops=dict(arrowstyle='->', color='green'),
-                   fontsize=12, fontproperties=en_font, ha='left', va='bottom')
+        ax_lb.set_xlim(-0.05, 0.1)
 
-    x_intercept_no_inh = -p_no_inh[1] / p_no_inh[0]
-    ax_lb.plot(x_intercept_no_inh, 0, marker='*', color='#4E6691', markersize=10)
+        # 修改Y轴范围为0~20
+        ax_lb.set_ylim(0, 20)  # 固定Y轴范围为0到20
 
-    # 使用箭头标注 "-1/K_m"，与x轴标签齐平，位于交点下方
-    ax_lb.annotate(r'$-1 / K_m$', xy=(x_intercept_no_inh, 0), xytext=(x_intercept_no_inh, -0.115 * y_max),
-                   arrowprops=dict(arrowstyle='->', color='green'),
-                   fontsize=12, fontproperties=en_font, ha='center', va='top')
+        # 计算截距
+        y_intercept_no_inh = p_no_inh[1]
+        y_intercept_inh = p_inh[1]
+        x_intercept_no_inh = -p_no_inh[1] / p_no_inh[0]
+        x_intercept_inh = -p_inh[1] / p_inh[0]
 
-    x_intercept_inh = -p_inh[1] / p_inh[0]
-    ax_lb.plot(x_intercept_inh, 0, marker='*', color='#B8474D', markersize=10)
+        # 绘制截距点
+        ax_lb.plot(0, y_intercept_no_inh, 'go', markersize=8, label="截距点" if lang == "zh" else "Intercepts")
+        ax_lb.plot(0, y_intercept_inh, 'ro', markersize=8)
+        ax_lb.plot(x_intercept_no_inh, 0, 'b*', markersize=10)
+        ax_lb.plot(x_intercept_inh, 0, 'r*', markersize=10)
 
-    # 使用箭头标注 "-1/K_m(1+c_1/K_1)"，与x轴标签齐平，位于交点下方
-    ax_lb.annotate(r'$-1 / K_m (1 + \frac{c_1}{K_1})$', xy=(x_intercept_inh, 0), xytext=(x_intercept_inh, -0.145 * y_max),
-                   arrowprops=dict(arrowstyle='->', color='green'),
-                   fontsize=12, fontproperties=en_font, ha='center', va='top')
+        # 统一标注格式（与竞争性抑制相同）
+        # 标注y轴截距（1/Vmax）
+        ax_lb.annotate(r'$\frac{1}{V_{max}}$',
+                       xy=(0, y_intercept_no_inh),
+                       xytext=(0.01, y_intercept_no_inh - 1),
+                       arrowprops=dict(arrowstyle='->', color='green'),
+                       fontsize=12, color='green',
+                       fontproperties=zh_font if lang == "zh" else None)
 
-    ax_lb.set_xlabel("1 / [S] (1/mM)", fontsize=12, fontproperties=en_font)
-    ax_lb.set_ylabel("1 / v (hour/mM)", fontsize=12, fontproperties=en_font)
-    ax_lb.set_title("Lineweaver-Burk", fontsize=14, fontproperties=en_font)
-    ax_lb.legend(loc='best', prop=zh_font if lang == "zh" else en_font)
-    ax_lb.grid(True, linestyle='--', alpha=0.7)
-    for spine in ax_lb.spines.values():
-        spine.set_linewidth(2.5)
-    st.pyplot(fig_lb)
+        # 标注有抑制的y轴截距
+        if key == "competitive":
+            # 竞争性抑制：y轴截距不变
+            ax_lb.annotate(r'$\frac{1}{V_{max}}$',
+                           xy=(0, y_intercept_inh),
+                           xytext=(0.01, y_intercept_inh + 0.5),
+                           arrowprops=dict(arrowstyle='->', color='red'),
+                           fontsize=12, color='red',
+                           fontproperties=zh_font if lang == "zh" else None)
+        else:
+            # 非竞争性和反竞争性抑制：y轴截距改变
+            ax_lb.annotate(r'$\frac{1}{V_{max}^{app}}$',
+                           xy=(0, y_intercept_inh),
+                           xytext=(0.01, y_intercept_inh + 0.5),
+                           arrowprops=dict(arrowstyle='->', color='red'),
+                           fontsize=12, color='red',
+                           fontproperties=zh_font if lang == "zh" else None)
 
-    st.markdown("""
-    **说明：** 蓝色线条表示无抑制剂情况，遵循标准Michaelis-Menten动力学。红色线条表示固定半乳糖浓度下的竞争性抑制。
-    注意两条线在y轴上的交点相同（绿色点），这表明竞争性抑制不影响 $V_{max}$，但改变了表观 $K_m$（与X轴负半轴的交点不同，蓝色和红色星号）。
-    """)
+        # 标注x轴截距（-1/Km）
+        ax_lb.annotate(r'$-\frac{1}{K_m}$',
+                       xy=(x_intercept_no_inh, 0),
+                       xytext=(x_intercept_no_inh, -1.5),
+                       arrowprops=dict(arrowstyle='->', color='blue'),
+                       fontsize=12, color='blue',
+                       fontproperties=zh_font if lang == "zh" else None)
+
+        # 标注有抑制的x轴截距
+        if key == "non_competitive":
+            # 非竞争性抑制：x轴截距不变
+            ax_lb.annotate(r'$-\frac{1}{K_m}$',
+                           xy=(x_intercept_inh, 0),
+                           xytext=(x_intercept_inh, -1.5),
+                           arrowprops=dict(arrowstyle='->', color='red'),
+                           fontsize=12, color='red',
+                           fontproperties=zh_font if lang == "zh" else None)
+        else:
+            # 竞争性和反竞争性抑制：x轴截距改变
+            ax_lb.annotate(r'$-\frac{1}{K_m^{app}}$',
+                           xy=(x_intercept_inh, 0),
+                           xytext=(x_intercept_inh, -1.5),
+                           arrowprops=dict(arrowstyle='->', color='red'),
+                           fontsize=12, color='red',
+                           fontproperties=zh_font if lang == "zh" else None)
+
+        ax_lb.set_xlabel("1 / [S] (1/mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+        ax_lb.set_ylabel("1 / v (hour/mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+        title = f"Lineweaver-Burk ({t[key]}抑制)" if lang == "zh" else f"Lineweaver-Burk ({key.capitalize()} Inhibition)"
+        ax_lb.set_title(title, fontsize=14, fontproperties=zh_font if lang == "zh" else None)
+        ax_lb.legend(loc='best', prop=zh_font if lang == "zh" else None)
+        ax_lb.grid(True, linestyle='--', alpha=0.7)
+        for spine in ax_lb.spines.values():
+            spine.set_linewidth(2.5)
+        st.pyplot(fig_lb)
+
+        # 显示解释文本
+        st.markdown(t["lb_explanation"][key])
 
     # 练习题
     with st.expander(t["exercises"]):
