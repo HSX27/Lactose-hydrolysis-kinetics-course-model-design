@@ -5,3 +5,4 @@ scipy
 matplotlib
 pandas
 openpyxl
+matplotlib-font-manager
