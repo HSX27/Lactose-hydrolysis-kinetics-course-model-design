@@ -10,17 +10,54 @@ import pandas as pd
 import matplotlib.font_manager as fm
 from io import BytesIO
 import matplotlib as mpl
+import os
 
+# ============================== 中文字体加载解决方案 ==============================
 # 设置全局字体以支持中文
 try:
-    # 尝试使用系统支持的中文字体
-    plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Microsoft YaHei', 'Arial Unicode MS', 'sans-serif']
+    # 获取当前文件所在目录
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    fonts_dir = os.path.join(current_dir, 'fonts')
+    
+    # 确保 fonts 目录存在
+    if not os.path.exists(fonts_dir):
+        os.makedirs(fonts_dir)
+        st.info(f"已创建字体目录: {fonts_dir}")
+    
+    # 定义字体文件路径
+    simsun_path = os.path.join(fonts_dir, 'simsun.ttf')
+    times_path = os.path.join(fonts_dir, 'times.ttf')
+    
+    # 检查字体文件是否存在
+    if not os.path.exists(simsun_path):
+        st.error(f"SimSun 字体文件未找到: {simsun_path}")
+    if not os.path.exists(times_path):
+        st.error(f"Times New Roman 字体文件未找到: {times_path}")
+    
+    # 添加字体目录到字体路径
+    font_files = fm.findSystemFonts(fontpaths=[fonts_dir])
+    for font_file in font_files:
+        fm.fontManager.addfont(font_file)
+    
+    # 设置中文字体
+    plt.rcParams['font.family'] = 'sans-serif'
+    plt.rcParams['font.sans-serif'] = ['SimSun', 'Times New Roman', 'Arial Unicode MS', 'sans-serif']
     plt.rcParams['axes.unicode_minus'] = False
-    zh_font = fm.FontProperties(fname=fm.findfont(fm.FontProperties(family=['SimHei', 'Microsoft YaHei'])))
-except:
+    
+    # 创建字体属性对象
+    simsun_font = fm.FontProperties(fname=simsun_path)
+    times_font = fm.FontProperties(fname=times_path)
+    
+    # 验证字体是否加载成功
+    st.success("字体已成功加载: SimSun 和 Times New Roman")
+    
+except Exception as e:
     # 如果找不到中文字体，使用默认字体
-    st.warning("无法找到中文字体，图表中文显示可能异常")
-    zh_font = fm.FontProperties()
+    st.warning(f"无法加载中文字体: {str(e)}，图表中文显示可能异常")
+    simsun_font = fm.FontProperties()
+    times_font = fm.FontProperties()
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
+    plt.rcParams['axes.unicode_minus'] = False
 
 # 检查 Streamlit 版本
 try:
@@ -41,7 +78,7 @@ lang = "zh" if language == "中文" else "en"
 translations = {
     "zh": {
         "title": "🍼 乳糖水解动力学模拟 - 教学版",
-        "intro": """
+        "intro": """<div style="font-family: 'SimSun', sans-serif;">
         ### 欢迎体验乳糖水解模拟
         乳糖水解是乳糖在β-半乳糖苷酶作用下分解为半乳糖和葡萄糖的过程，广泛应用于食品工业（如乳糖不耐受产品的生产）。本工具通过动力学模型模拟这一过程，帮助你理解酶催化反应和产物抑制的影响。
 
@@ -49,7 +86,7 @@ translations = {
         - 掌握Michaelis-Menten动力学的基本原理。
         - 理解产物抑制（半乳糖抑制）如何影响反应速率。
         - 通过交互式模拟，探索参数对乳糖水解的影响。
-        """,
+        </div>""",
         "model_desc": "该模型模拟乳糖在β-半乳糖苷酶作用下的水解过程，考虑产物抑制效应（半乳糖抑制）。",
         "equation": r"""
         **三种抑制类型的动力学方程：**
@@ -206,7 +243,7 @@ translations = {
 t = translations[lang]
 
 st.title(t["title"])
-st.markdown(t["intro"])
+st.markdown(t["intro"], unsafe_allow_html=True)
 
 # 在侧边栏添加抑制类型选择
 inhibition_types = st.sidebar.multiselect(
@@ -340,6 +377,14 @@ try:
 
     # 可视化
     fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # 设置图表字体
+    if lang == "zh":
+        title_font = simsun_font
+        label_font = simsun_font
+    else:
+        title_font = times_font
+        label_font = times_font
 
     # 存储所有模拟结果
     all_results = {}
@@ -383,14 +428,14 @@ try:
                     xy=(t_hour[-1], Gal[-1]),
                     xytext=(t_hour[-1] - 0.2, Gal[-1] + 0.05 * L0),
                     arrowprops=dict(arrowstyle='->', color=colors[key]),
-                    fontsize=10, color=colors[key], fontproperties=zh_font if lang == "zh" else None)
+                    fontsize=10, color=colors[key], fontproperties=simsun_font if lang == "zh" else None)
 
-    ax.set_xlabel("时间 (小时)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
-    ax.set_ylabel("浓度 (mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+    ax.set_xlabel("时间 (小时)", fontsize=12, fontproperties=label_font)
+    ax.set_ylabel("浓度 (mM)", fontsize=12, fontproperties=label_font)
     title = "乳糖水解动力学" if lang == "zh" else "Lactose Hydrolysis Kinetics"
-    ax.set_title(title, fontsize=14, fontproperties=zh_font if lang == "zh" else None)
+    ax.set_title(title, fontsize=14, fontproperties=title_font)
     ax.grid(True, linestyle='--', alpha=0.7)
-    ax.legend(loc='best', fontsize=10, prop=zh_font if lang == "zh" else None)
+    ax.legend(loc='best', fontsize=10, prop=simsun_font if lang == "zh" else None)
     ax.set_xlim([0, t_max])
     ax.set_ylim([0, L0 * 1.1])
     for spine in ax.spines.values():
@@ -484,6 +529,15 @@ try:
         t_hour, L, Gal, rates = all_results[key]
 
         fig2, ax2 = plt.subplots(figsize=(10, 6))
+        
+        # 设置图表字体
+        if lang == "zh":
+            title_font = simsun_font
+            label_font = simsun_font
+        else:
+            title_font = times_font
+            label_font = times_font
+            
         ax2.plot(L, rates, color=colors[key], linewidth=2.5,
                  label="有抑制" if lang == "zh" else "With Inhibition")
 
@@ -502,14 +556,14 @@ try:
                      xy=(L[max_rate_idx], max_rate),
                      xytext=(L[max_rate_idx] + 0.05 * L0, max_rate * 1.1),
                      arrowprops=dict(arrowstyle='->', color='red'),
-                     fontsize=10, fontproperties=zh_font if lang == "zh" else None)
+                     fontsize=10, fontproperties=simsun_font if lang == "zh" else None)
 
-        ax2.set_xlabel("底物浓度 L (mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
-        ax2.set_ylabel("反应速率 (mM/小时)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+        ax2.set_xlabel("底物浓度 L (mM)", fontsize=12, fontproperties=label_font)
+        ax2.set_ylabel("反应速率 (mM/小时)", fontsize=12, fontproperties=label_font)
         title = f"反应速率 vs. 底物浓度" if lang == "zh" else "Reaction Rate vs. Substrate Concentration"
-        ax2.set_title(title, fontsize=14, fontproperties=zh_font if lang == "zh" else None)
+        ax2.set_title(title, fontsize=14, fontproperties=title_font)
         ax2.grid(True, linestyle='--', alpha=0.7)
-        ax2.legend(loc='best', prop=zh_font if lang == "zh" else None)
+        ax2.legend(loc='best', prop=simsun_font if lang == "zh" else None)
         ax2.set_xlim([0, L0])
         ax2.set_ylim([0, max(rates) * 1.2])
 
@@ -544,6 +598,15 @@ try:
         inv_v_inh = 1 / v_inh
 
         fig_lb, ax_lb = plt.subplots(figsize=(10, 6))
+        
+        # 设置图表字体
+        if lang == "zh":
+            title_font = simsun_font
+            label_font = simsun_font
+        else:
+            title_font = times_font
+            label_font = times_font
+            
         p_no_inh = np.polyfit(inv_S, inv_v_no_inh, 1)
         x_fit_no_inh = np.linspace(-0.05, max(inv_S), 100)
         y_fit_no_inh = np.polyval(p_no_inh, x_fit_no_inh)
@@ -580,7 +643,7 @@ try:
                        xytext=(0.01, y_intercept_no_inh - 1),
                        arrowprops=dict(arrowstyle='->', color='green'),
                        fontsize=12, color='green',
-                       fontproperties=zh_font if lang == "zh" else None)
+                       fontproperties=simsun_font if lang == "zh" else None)
 
         # 标注有抑制的y轴截距
         if key == "competitive":
@@ -590,7 +653,7 @@ try:
                            xytext=(0.01, y_intercept_inh + 0.5),
                            arrowprops=dict(arrowstyle='->', color='red'),
                            fontsize=12, color='red',
-                           fontproperties=zh_font if lang == "zh" else None)
+                           fontproperties=simsun_font if lang == "zh" else None)
         else:
             # 非竞争性和反竞争性抑制：y轴截距改变
             ax_lb.annotate(r'$\frac{1}{V_{max}^{app}}$',
@@ -598,7 +661,7 @@ try:
                            xytext=(0.01, y_intercept_inh + 0.5),
                            arrowprops=dict(arrowstyle='->', color='red'),
                            fontsize=12, color='red',
-                           fontproperties=zh_font if lang == "zh" else None)
+                           fontproperties=simsun_font if lang == "zh" else None)
 
         # 标注x轴截距（-1/Km）
         ax_lb.annotate(r'$-\frac{1}{K_m}$',
@@ -606,7 +669,7 @@ try:
                        xytext=(x_intercept_no_inh, -1.5),
                        arrowprops=dict(arrowstyle='->', color='blue'),
                        fontsize=12, color='blue',
-                       fontproperties=zh_font if lang == "zh" else None)
+                       fontproperties=simsun_font if lang == "zh" else None)
 
         # 标注有抑制的x轴截距
         if key == "non_competitive":
@@ -616,7 +679,7 @@ try:
                            xytext=(x_intercept_inh, -1.5),
                            arrowprops=dict(arrowstyle='->', color='red'),
                            fontsize=12, color='red',
-                           fontproperties=zh_font if lang == "zh" else None)
+                           fontproperties=simsun_font if lang == "zh" else None)
         else:
             # 竞争性和反竞争性抑制：x轴截距改变
             ax_lb.annotate(r'$-\frac{1}{K_m^{app}}$',
@@ -624,13 +687,13 @@ try:
                            xytext=(x_intercept_inh, -1.5),
                            arrowprops=dict(arrowstyle='->', color='red'),
                            fontsize=12, color='red',
-                           fontproperties=zh_font if lang == "zh" else None)
+                           fontproperties=simsun_font if lang == "zh" else None)
 
-        ax_lb.set_xlabel("1 / [S] (1/mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
-        ax_lb.set_ylabel("1 / v (hour/mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+        ax_lb.set_xlabel("1 / [S] (1/mM)", fontsize=12, fontproperties=label_font)
+        ax_lb.set_ylabel("1 / v (hour/mM)", fontsize=12, fontproperties=label_font)
         title = f"Lineweaver-Burk ({t[key]}抑制)" if lang == "zh" else f"Lineweaver-Burk ({key.capitalize()} Inhibition)"
-        ax_lb.set_title(title, fontsize=14, fontproperties=zh_font if lang == "zh" else None)
-        ax_lb.legend(loc='best', prop=zh_font if lang == "zh" else None)
+        ax_lb.set_title(title, fontsize=14, fontproperties=title_font)
+        ax_lb.legend(loc='best', prop=simsun_font if lang == "zh" else None)
         ax_lb.grid(True, linestyle='--', alpha=0.7)
         for spine in ax_lb.spines.values():
             spine.set_linewidth(2.5)
