@@ -149,7 +149,12 @@ translations = {
             "competitive": "蓝色线条表示无抑制剂情况，遵循标准Michaelis-Menten动力学。红色线条表示固定半乳糖浓度下的竞争性抑制。注意两条线在y轴上的交点相同（绿色点），这表明竞争性抑制不影响 $V_{{max}}$，但改变了表观 $K_m$（与X轴负半轴的交点不同，蓝色和红色星号）。",
             "non_competitive": "蓝色线条表示无抑制剂情况，遵循标准Michaelis-Menten动力学。红色线条表示固定半乳糖浓度下的非竞争性抑制。注意两条线在x轴上的交点相同（绿色星号），这表明非竞争性抑制不影响 $K_m$，但改变了表观 $V_{{max}}$（与y轴的交点不同）。",
             "uncompetitive": "蓝色线条表示无抑制剂情况，遵循标准Michaelis-Menten动力学。红色线条表示固定半乳糖浓度下的反竞争性抑制。注意两条线平行（斜率相同），这表明反竞争性抑制同时改变了 $K_m$ 和 $V_{{max}}$，但斜率不变。"
-        }
+        },
+        "time_label": "时间 (小时)",
+        "concentration_label": "浓度 (mM)",
+        "substrate_label": "底物浓度 L (mM)",
+        "rate_label": "反应速率 (mM/小时)",
+        "no_inhibition": "无抑制"
     },
     "en": {
         "title": "🍼 Lactose Hydrolysis Kinetics Simulation - Educational Version",
@@ -224,7 +229,12 @@ translations = {
             "competitive": "Blue line represents no inhibitor case, following standard Michaelis-Menten kinetics. Red line represents competitive inhibition at fixed galactose concentration. Note that both lines intersect at the same point on the y-axis (green point), indicating that competitive inhibition does not affect $V_{{max}}$, but changes the apparent $K_m$ (different intercepts on the negative x-axis, blue and red stars).",
             "non_competitive": "Blue line represents no inhibitor case, following standard Michaelis-Menten kinetics. Red line represents non-competitive inhibition at fixed galactose concentration. Note that both lines intersect at the same point on the x-axis (green star), indicating that non-competitive inhibition does not affect $K_m$, but changes the apparent $V_{{max}}$ (different intercepts on the y-axis).",
             "uncompetitive": "Blue line represents no inhibitor case, following standard Michaelis-Menten kinetics. Red line represents uncompetitive inhibition at fixed galactose concentration. Note that both lines are parallel (same slope), indicating that uncompetitive inhibition changes both $K_m$ and $V_{{max}}$, but the slope remains constant."
-        }
+        },
+        "time_label": "Time (hours)",
+        "concentration_label": "Concentration (mM)",
+        "substrate_label": "Substrate Concentration L (mM)",
+        "rate_label": "Reaction Rate (mM/hour)",
+        "no_inhibition": "No Inhibition"
     }
 }
 
@@ -282,7 +292,7 @@ with col1:
         max_value=500.0,
         value=200.0,
         step=0.1,
-        help="反应开始时的乳糖浓度 (mM)"
+        help="反应开始时的乳糖浓度 (mM)" if lang == "zh" else "Initial lactose concentration (mM)"
     )
     E = st.slider(
         label=t["enzyme_conc"],
@@ -290,7 +300,7 @@ with col1:
         max_value=10.0,
         value=1.0,
         step=0.001,
-        help="酶浓度 (U/mL)，影响反应速率"
+        help="酶浓度 (U/mL)，影响反应速率" if lang == "zh" else "Enzyme concentration (U/mL), key factor determining reaction rate"
     )
     t_max = st.slider(
         label=t["reaction_time"],
@@ -298,7 +308,7 @@ with col1:
         max_value=12.0,
         value=1.0,
         step=0.01,
-        help="模拟的反应时间 (小时)"
+        help="模拟的反应时间 (小时)" if lang == "zh" else "Simulation reaction time (hours)"
     )
 
 with col2:
@@ -309,7 +319,7 @@ with col2:
         max_value=50.0,
         value=30.0,
         step=0.1,
-        help="米氏常数 (mM)，表示酶对底物的亲和力"
+        help="米氏常数 (mM)，表示酶对底物的亲和力" if lang == "zh" else "Michaelis constant (mM), indicating enzyme-substrate affinity"
     )
     Ki = st.slider(
         label=t["ki"],
@@ -317,7 +327,7 @@ with col2:
         max_value=50.0,
         value=10.0,
         step=0.1,
-        help="抑制常数 (mM)，表示半乳糖的抑制强度"
+        help="抑制常数 (mM)，表示半乳糖的抑制强度" if lang == "zh" else "Inhibition constant (mM), indicating galactose inhibition strength"
     )
     steps = st.slider(
         label=t["steps"],
@@ -325,7 +335,7 @@ with col2:
         max_value=500,
         value=200,
         step=1,
-        help="数值计算的步数，影响模拟精度"
+        help="数值计算的步数，影响模拟精度" if lang == "zh" else "Number of calculation points, affects simulation precision"
     )
 
 # 理论背景
@@ -386,13 +396,12 @@ try:
     all_results = {}
 
     # 处理无抑制情况
-    compare_inhibition = True  # 始终显示无抑制情况
     t_hour_no_inh, L_no_inh, Gal_no_inh, rates_no_inh = solve_model(L0, Vmax, Km, Ki, t_max, steps, "no_inhibition")
     all_results["no_inhibition"] = (t_hour_no_inh, L_no_inh, Gal_no_inh, rates_no_inh)
     ax.plot(t_hour_no_inh, L_no_inh, '--', color=colors["no_inhibition"], linewidth=2.5,
-            label=f"乳糖 (无抑制)" if lang == "zh" else "Lactose (No Inhibition)")
+            label=f"乳糖 ({t['no_inhibition']})" if lang == "zh" else f"Lactose ({t['no_inhibition']})")
     ax.plot(t_hour_no_inh, Gal_no_inh, '--', color='#FF7F0E', linewidth=2.5,
-            label=f"半乳糖 (无抑制)" if lang == "zh" else "Galactose (No Inhibition)")
+            label=f"半乳糖 ({t['no_inhibition']})" if lang == "zh" else f"Galactose ({t['no_inhibition']})")
 
     # 处理选中的抑制类型
     for itype in inhibition_types:
@@ -426,8 +435,9 @@ try:
                     arrowprops=dict(arrowstyle='->', color=colors[key]),
                     fontsize=10, color=colors[key], fontproperties=zh_font if lang == "zh" else None)
 
-    ax.set_xlabel("时间 (小时)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
-    ax.set_ylabel("浓度 (mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+    # 使用翻译的坐标轴标签
+    ax.set_xlabel(t["time_label"], fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+    ax.set_ylabel(t["concentration_label"], fontsize=12, fontproperties=zh_font if lang == "zh" else None)
     title = "乳糖水解动力学" if lang == "zh" else "Lactose Hydrolysis Kinetics"
     ax.set_title(title, fontsize=14, fontproperties=zh_font if lang == "zh" else None)
     ax.grid(True, linestyle='--', alpha=0.7)
@@ -444,10 +454,9 @@ try:
         results_data = []
         
         # 添加无抑制结果
-        t_hour_no_inh, L_no_inh, Gal_no_inh, rates_no_inh = all_results["no_inhibition"]
         conversion_no_inh = (1 - L_no_inh[-1] / L0) * 100
         results_data.append({
-            "抑制类型": "无抑制" if lang == "zh" else "No Inhibition",
+            "抑制类型" if lang == "zh" else "Inhibition Type": t["no_inhibition"],
             t["final_lactose"]: f"{L_no_inh[-1]:.1f} mM",
             t["final_galactose"]: f"{Gal_no_inh[-1]:.1f} mM",
             t["conversion_rate"]: f"{conversion_no_inh:.1f}%"
@@ -471,7 +480,7 @@ try:
             t_hour, L, Gal, rates = all_results[key]
             conversion = (1 - L[-1] / L0) * 100
             results_data.append({
-                "抑制类型": label,
+                "抑制类型" if lang == "zh" else "Inhibition Type": label,
                 t["final_lactose"]: f"{L[-1]:.1f} mM",
                 t["final_galactose"]: f"{Gal[-1]:.1f} mM",
                 t["conversion_rate"]: f"{conversion:.1f}%"
@@ -496,7 +505,7 @@ try:
         for inhibition_type, (t_hour, L, Gal, rates) in all_results.items():
             # 根据抑制类型确定工作表名称
             if inhibition_type == "no_inhibition":
-                sheet_name = "无抑制" if lang == "zh" else "No Inhibition"
+                sheet_name = t["no_inhibition"]
             elif inhibition_type == "competitive":
                 sheet_name = "竞争性抑制" if lang == "zh" else "Competitive"
             elif inhibition_type == "non_competitive":
@@ -544,53 +553,108 @@ try:
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
 
-    # 反应速率分析 - 使用第一个抑制类型的结果
+    # 反应速率分析图 - 始终显示无抑制情况
     st.subheader(t["rate_analysis"])
-    if all_results and inhibition_types:
-        key = "competitive" if t["competitive"] in inhibition_types else list(all_results.keys())[1]
-        t_hour, L, Gal, rates = all_results[key]
-
+    if all_results:  # 只要有无抑制结果就执行
+        # 使用无抑制结果
+        t_hour_no_inh, L_no_inh, Gal_no_inh, rates_no_inh = all_results["no_inhibition"]
+        
         fig2, ax2 = plt.subplots(figsize=(10, 6))
-        ax2.plot(L, rates, color=colors[key], linewidth=2.5,
-                 label="有抑制" if lang == "zh" else "With Inhibition")
-
-        if "no_inhibition" in all_results:
-            _, L_no_inh, _, rates_no_inh = all_results["no_inhibition"]
-            ax2.plot(L_no_inh, rates_no_inh, 'b--', linewidth=2.5,
-                     label="无抑制" if lang == "zh" else "No Inhibition")
-
-        # 找到最大反应速率及其发生时间
-        max_rate_idx = np.argmax(rates)
-        max_rate = rates[max_rate_idx]
-        max_rate_time = t_hour[max_rate_idx]
-
-        # 标注最大速率
-        ax2.annotate(f'最大速率: {max_rate:.2f} mM/h' if lang == "zh" else f'Max rate: {max_rate:.2f} mM/h',
-                     xy=(L[max_rate_idx], max_rate),
-                     xytext=(L[max_rate_idx] + 0.05 * L0, max_rate * 1.1),
-                     arrowprops=dict(arrowstyle='->', color='red'),
+        ax2.plot(L_no_inh, rates_no_inh, 'b--', linewidth=2.5,
+                 label=t["no_inhibition"])
+        
+        # 如果选择了抑制类型，添加第一个抑制类型的结果
+        if inhibition_types:
+            # 获取第一个抑制类型
+            first_itype = inhibition_types[0]
+            if first_itype == t["competitive"]:
+                key = "competitive"
+            elif first_itype == t["non_competitive"]:
+                key = "non_competitive"
+            elif first_itype == t["uncompetitive"]:
+                key = "uncompetitive"
+            else:
+                key = "no_inhibition"
+                
+            if key in all_results:
+                t_hour, L, Gal, rates = all_results[key]
+                ax2.plot(L, rates, color=colors[key], linewidth=2.5,
+                         label=first_itype)
+                
+                # 找到最大反应速率及其发生时间（抑制类型）
+                max_rate_idx = np.argmax(rates)
+                max_rate = rates[max_rate_idx]
+                max_rate_time = t_hour[max_rate_idx]
+                
+                # 标注最大速率
+                annotation_text = f'最大速率: {max_rate:.2f} mM/h' if lang == "zh" else f'Max rate: {max_rate:.2f} mM/h'
+                ax2.annotate(annotation_text,
+                             xy=(L[max_rate_idx], max_rate),
+                             xytext=(L[max_rate_idx] + 0.05 * L0, max_rate * 1.1),
+                             arrowprops=dict(arrowstyle='->', color='red'),
+                             fontsize=10, fontproperties=zh_font if lang == "zh" else None)
+                
+                # 显示最大速率信息
+                st.markdown(t["max_rate"].format(max_rate, max_rate_time))
+        
+        # 找到最大反应速率及其发生时间（无抑制）
+        max_rate_idx_no_inh = np.argmax(rates_no_inh)
+        max_rate_no_inh = rates_no_inh[max_rate_idx_no_inh]
+        max_rate_time_no_inh = t_hour_no_inh[max_rate_idx_no_inh]
+        
+        # 标注最大速率（无抑制）
+        annotation_text_no_inh = f'{t["no_inhibition"]} 最大速率: {max_rate_no_inh:.2f} mM/h' if lang == "zh" else f'{t["no_inhibition"]} Max rate: {max_rate_no_inh:.2f} mM/h'
+        ax2.annotate(annotation_text_no_inh,
+                     xy=(L_no_inh[max_rate_idx_no_inh], max_rate_no_inh),
+                     xytext=(L_no_inh[max_rate_idx_no_inh] + 0.05 * L0, max_rate_no_inh * 1.1),
+                     arrowprops=dict(arrowstyle='->', color='blue'),
                      fontsize=10, fontproperties=zh_font if lang == "zh" else None)
 
-        ax2.set_xlabel("底物浓度 L (mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
-        ax2.set_ylabel("反应速率 (mM/小时)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+        # 如果没有选择抑制类型，显示无抑制的最大速率信息
+        if not inhibition_types:
+            st.markdown(f"{t['no_inhibition']} {t['max_rate'].format(max_rate_no_inh, max_rate_time_no_inh)}")
+
+        # 设置图表属性
+        ax2.set_xlabel(t["substrate_label"], fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+        ax2.set_ylabel(t["rate_label"], fontsize=12, fontproperties=zh_font if lang == "zh" else None)
         title = f"反应速率 vs. 底物浓度" if lang == "zh" else "Reaction Rate vs. Substrate Concentration"
         ax2.set_title(title, fontsize=14, fontproperties=zh_font if lang == "zh" else None)
         ax2.grid(True, linestyle='--', alpha=0.7)
         ax2.legend(loc='best', prop=zh_font if lang == "zh" else None)
         ax2.set_xlim([0, L0])
-        ax2.set_ylim([0, max(rates) * 1.2])
+        
+        # 设置Y轴范围
+        y_max = max(rates_no_inh) * 1.2
+        if inhibition_types and key in all_results:
+            y_max = max(y_max, max(rates) * 1.2)
+        ax2.set_ylim([0, y_max])
 
         for spine in ax2.spines.values():
             spine.set_linewidth(2.5)
         st.pyplot(fig2)
 
-        # 显示最大速率信息
-        st.markdown(t["max_rate"].format(max_rate, max_rate_time))
-
-    # Lineweaver-Burk 图表
+    # Lineweaver-Burk 图表 - 始终显示
     st.subheader(t["lb_chart"])
-    if all_results and inhibition_types:
-        key = "competitive" if t["competitive"] in inhibition_types else list(all_results.keys())[1]
+    if all_results:  # 只要有无抑制结果就执行
+        # 如果没有选择抑制类型，默认使用竞争性抑制
+        if not inhibition_types:
+            key = "competitive"
+            display_key = t["competitive"]
+        else:
+            # 使用第一个选择的抑制类型
+            first_itype = inhibition_types[0]
+            if first_itype == t["competitive"]:
+                key = "competitive"
+                display_key = t["competitive"]
+            elif first_itype == t["non_competitive"]:
+                key = "non_competitive"
+                display_key = t["non_competitive"]
+            elif first_itype == t["uncompetitive"]:
+                key = "uncompetitive"
+                display_key = t["uncompetitive"]
+            else:
+                key = "competitive"
+                display_key = t["competitive"]
 
         Gal_fixed = st.slider(t["fixed_galactose"], 0.0, 200.0, 100.0)
         S_range = np.linspace(1, 500, 20)
@@ -621,7 +685,7 @@ try:
         x_fit_inh = np.linspace(-0.05, max(inv_S), 100)
         y_fit_inh = np.polyval(p_inh, x_fit_inh)
         ax_lb.plot(x_fit_inh, y_fit_inh, color='#B8474D', linewidth=2.5,
-                   label=f"{t[key]}抑制" if lang == "zh" else f"{key.capitalize()} Inhibition")
+                   label=f"{display_key}抑制" if lang == "zh" else f"{display_key} Inhibition")
 
         ax_lb.set_xlim(-0.05, 0.1)
 
@@ -695,7 +759,7 @@ try:
 
         ax_lb.set_xlabel("1 / [S] (1/mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
         ax_lb.set_ylabel("1 / v (hour/mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
-        title = f"Lineweaver-Burk ({t[key]}抑制)" if lang == "zh" else f"Lineweaver-Burk ({key.capitalize()} Inhibition)"
+        title = f"Lineweaver-Burk ({display_key}抑制)" if lang == "zh" else f"Lineweaver-Burk ({display_key} Inhibition)"
         ax_lb.set_title(title, fontsize=14, fontproperties=zh_font if lang == "zh" else None)
         ax_lb.legend(loc='best', prop=zh_font if lang == "zh" else None)
         ax_lb.grid(True, linestyle='--', alpha=0.7)
