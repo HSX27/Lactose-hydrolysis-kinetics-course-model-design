@@ -687,7 +687,7 @@ try:
         ax_lb.plot(x_fit_inh, y_fit_inh, color='#B8474D', linewidth=2.5,
                    label=f"{display_key}抑制" if lang == "zh" else f"{display_key} Inhibition")
 
-        ax_lb.set_xlim(-0.05, 0.1)
+        ax_lb.set_xlim(-0.1, 0.2)
 
         # 修改Y轴范围为0~20
         ax_lb.set_ylim(0, 20)  # 固定Y轴范围为0到20
