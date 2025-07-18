@@ -569,6 +569,7 @@ try:
         # 初始化第一个抑制类型的最大速率和时间
         max_rate_inh = None
         max_rate_time_inh = None
+        inhibition_label = None
 
         # 如果选择了抑制类型，添加第一个抑制类型的结果
         if inhibition_types:
@@ -576,22 +577,27 @@ try:
             first_itype = inhibition_types[0]
             if first_itype == t["competitive"]:
                 key = "competitive"
+                label_prefix = "竞争性" if lang == "zh" else "Competitive"
             elif first_itype == t["non_competitive"]:
                 key = "non_competitive"
+                label_prefix = "非竞争性" if lang == "zh" else "Non-competitive"
             elif first_itype == t["uncompetitive"]:
                 key = "uncompetitive"
+                label_prefix = "反竞争性" if lang == "zh" else "Uncompetitive"
             else:
                 key = "no_inhibition"
+                label_prefix = t["no_inhibition"]
 
             if key in all_results:
                 t_hour, L, Gal, rates = all_results[key]
                 ax2.plot(L, rates, color=colors[key], linewidth=2.5,
-                         label=first_itype)
+                         label=f"{label_prefix}抑制" if lang == "zh" else f"{label_prefix} Inhibition")
 
                 # 找到最大反应速率及其发生时间（抑制类型）
                 max_rate_idx = np.argmax(rates)
                 max_rate_inh = rates[max_rate_idx]
                 max_rate_time_inh = t_hour[max_rate_idx]
+                inhibition_label = f"{label_prefix}抑制" if lang == "zh" else f"{label_prefix} Inhibition"
 
                 # 标注最大速率 - 修改为向下标注
                 annotation_text = f'最大速率: {max_rate_inh:.2f} mM/h' if lang == "zh" else f'Max rate: {max_rate_inh:.2f} mM/h'
@@ -639,8 +645,8 @@ try:
                     t["max_rate"].format(max_rate_no_inh, max_rate_time_no_inh))
 
         # 如果选择了抑制类型，显示第一个抑制类型的最大速率
-        if inhibition_types and key in all_results and max_rate_inh is not None:
-            st.markdown(f"**{inhibition_types[0]}**: " +
+        if inhibition_types and key in all_results and max_rate_inh is not None and inhibition_label is not None:
+            st.markdown(f"**{inhibition_label}**: " +
                         t["max_rate"].format(max_rate_inh, max_rate_time_inh))
 
         # 设置图表属性
