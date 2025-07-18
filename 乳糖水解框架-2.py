@@ -18,40 +18,40 @@ try:
     # 获取当前文件所在目录
     current_dir = os.path.dirname(os.path.abspath(__file__))
     fonts_dir = os.path.join(current_dir, 'fonts')
-    
+
     # 确保 fonts 目录存在
     if not os.path.exists(fonts_dir):
         os.makedirs(fonts_dir)
-    
+
     # 检查字体文件是否存在，如果不存在则尝试下载
     simhei_path = os.path.join(fonts_dir, 'simhei.ttf')
     msyh_path = os.path.join(fonts_dir, 'msyh.ttf')
-    
+
     if not os.path.exists(simhei_path):
         # 从 GitHub 下载 SimHei 替代字体
         simhei_url = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf"
         urllib.request.urlretrieve(simhei_url, simhei_path)
-    
+
     if not os.path.exists(msyh_path):
         # 从 GitHub 下载 Microsoft YaHei 替代字体
         msyh_url = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf"
         urllib.request.urlretrieve(msyh_url, msyh_path)
-    
+
     # 添加字体目录到字体路径
     font_files = fm.findSystemFonts(fontpaths=[fonts_dir])
     for font_file in font_files:
         fm.fontManager.addfont(font_file)
-    
+
     # 设置中文字体
     plt.rcParams['font.sans-serif'] = ['Noto Sans SC', 'SimHei', 'Microsoft YaHei', 'Arial Unicode MS', 'sans-serif']
     plt.rcParams['axes.unicode_minus'] = False
-    
+
     # 验证字体是否加载成功
     zh_font = fm.FontProperties(fname=simhei_path)
-    
+
     # 显示成功消息
     st.sidebar.success("中文字体已成功加载")
-    
+
 except Exception as e:
     # 如果找不到中文字体，使用默认字体
     st.sidebar.warning(f"无法加载中文字体: {str(e)}，图表中文显示可能异常")
@@ -117,12 +117,6 @@ translations = {
         - $V_{max}$: 最大反应速率，与酶浓度 ($E$) 成正比
         - $K_m$: 米氏常数，表示酶对底物的亲和力（$K_m$ 越小，亲和力越高）
         - $K_i$: 产物抑制常数，表示半乳糖对酶的抑制强度（$K_i$ 越小，抑制越强）
-
-        **微分方程推导：**
-        根据Michaelis-Menten动力学，反应速率 $v = \frac{V_{max} \cdot L}{K_m + L}$。加入产物抑制后，根据抑制类型不同，方程如下：
-        - **竞争性抑制：** $$ v = \frac{V_{max} \cdot L}{K_m \cdot (1 + \frac{Gal}{K_i}) + L} $$
-        - **非竞争性抑制：** $$ v = \frac{V_{max} \cdot L}{(K_m + L) \cdot (1 + \frac{Gal}{K_i})} $$
-        - **反竞争性抑制：** $$ v = \frac{V_{max} \cdot L}{K_m + L \cdot (1 + \frac{Gal}{K_i})} $$
         """,
         "equation_desc": "上述方程考虑了产物半乳糖对酶活的不同抑制机制。",
         "inhibition_type": "产物抑制类型",
@@ -198,12 +192,6 @@ translations = {
         - $V_{max}$: Maximum reaction rate, proportional to enzyme concentration ($E$)
         - $K_m$: Michaelis constant, indicating enzyme-substrate affinity (lower $K_m$, higher affinity)
         - $K_i$: Product inhibition constant, indicating galactose inhibition strength (lower $K_i$, stronger inhibition)
-
-        **Differential Equation Derivation:**
-        Based on Michaelis-Menten kinetics, the reaction rate is $v = \frac{V_{max} \cdot L}{K_m + L}$。With product inhibition, the equation varies by inhibition type:
-        - **Competitive Inhibition:** $$ v = \frac{V_{max} \cdot L}{K_m \cdot (1 + \frac{Gal}{K_i}) + L} $$
-        - **Non-competitive Inhibition:** $$ v = \frac{V_{max} \cdot L}{(K_m + L) \cdot (1 + \frac{Gal}{K_i})} $$
-        - **Uncompetitive Inhibition:** $$ v = \frac{V_{max} \cdot L}{K_m + L \cdot (1 + \frac{Gal}{K_i})} $$
         """,
         "equation_desc": "These equations account for different inhibition mechanisms of the enzyme by the product galactose.",
         "inhibition_type": "Product Inhibition Type",
@@ -267,6 +255,19 @@ else:
 
 # 主界面
 st.markdown(t["model_desc"])
+
+# 添加米氏方程介绍
+st.markdown("### 米氏方程 (Michaelis-Menten Equation)" if lang == "zh" else "### Michaelis-Menten Equation")
+st.markdown(r"酶催化反应的基本动力学方程：" if lang == "zh" else "The fundamental kinetic equation for enzyme-catalyzed reactions:")
+st.markdown(r"$$ r = \frac{V_{max} \cdot L}{K_m + L} $$")
+st.markdown(r"其中：" if lang == "zh" else "Where:")
+st.markdown(r"- $r$: 反应速率 (mM/小时)" if lang == "zh" else "- $r$: Reaction rate (mM/hour)")
+st.markdown(r"- $V_{max}$: 最大反应速率 (mM/小时)" if lang == "zh" else "- $V_{max}$: Maximum reaction rate (mM/hour)")
+st.markdown(r"- $L$: 底物浓度 (mM)" if lang == "zh" else "- $L$: Substrate concentration (mM)")
+st.markdown(r"- $K_m$: 米氏常数 (mM)，表示酶对底物的亲和力" if lang == "zh" else "- $K_m$: Michaelis constant (mM), indicating enzyme-substrate affinity")
+
+# 添加产物抑制模型介绍
+st.markdown("### 产物抑制模型" if lang == "zh" else "### Product Inhibition Model")
 st.markdown(t["equation"])  # 显示三种抑制类型的方程
 st.markdown(t["gal_desc"])
 
@@ -375,6 +376,9 @@ try:
         "no_inhibition": '#808080'
     }
 
+    # 添加浓度-时间分析标题
+    st.subheader("浓度-时间分析" if lang == "zh" else "Concentration-Time Profile")
+    
     # 可视化
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -434,22 +438,48 @@ try:
         spine.set_linewidth(2.5)
     st.pyplot(fig)
 
-    # 关键指标 - 显示第一个抑制类型的结果
+    # 关键指标 - 显示所有抑制类型和无抑制的结果
     if all_results:
-        # 使用第一个抑制类型的结果（如果有）
-        if inhibition_types:
-            key = "competitive" if t["competitive"] in inhibition_types else list(all_results.keys())[1]
+        # 创建结果表格
+        results_data = []
+        
+        # 添加无抑制结果
+        t_hour_no_inh, L_no_inh, Gal_no_inh, rates_no_inh = all_results["no_inhibition"]
+        conversion_no_inh = (1 - L_no_inh[-1] / L0) * 100
+        results_data.append({
+            "抑制类型": "无抑制" if lang == "zh" else "No Inhibition",
+            t["final_lactose"]: f"{L_no_inh[-1]:.1f} mM",
+            t["final_galactose"]: f"{Gal_no_inh[-1]:.1f} mM",
+            t["conversion_rate"]: f"{conversion_no_inh:.1f}%"
+        })
+        
+        # 添加选中的抑制类型结果
+        for itype in inhibition_types:
+            # 将显示名称映射到内部标识符
+            if itype == t["competitive"]:
+                key = "competitive"
+                label = "竞争性抑制" if lang == "zh" else "Competitive"
+            elif itype == t["non_competitive"]:
+                key = "non_competitive"
+                label = "非竞争性抑制" if lang == "zh" else "Non-competitive"
+            elif itype == t["uncompetitive"]:
+                key = "uncompetitive"
+                label = "反竞争性抑制" if lang == "zh" else "Uncompetitive"
+            else:
+                continue
+                
             t_hour, L, Gal, rates = all_results[key]
-        else:
-            key = "no_inhibition"
-            t_hour, L, Gal, rates = all_results[key]
-
-        conversion = (1 - L[-1] / L0) * 100
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric(t["final_lactose"], f"{L[-1]:.1f} mM")
-        col2.metric(t["final_galactose"], f"{Gal[-1]:.1f} mM")
-        col3.metric(t["conversion_rate"], f"{conversion:.1f}%")
+            conversion = (1 - L[-1] / L0) * 100
+            results_data.append({
+                "抑制类型": label,
+                t["final_lactose"]: f"{L[-1]:.1f} mM",
+                t["final_galactose"]: f"{Gal[-1]:.1f} mM",
+                t["conversion_rate"]: f"{conversion:.1f}%"
+            })
+        
+        # 显示结果表格
+        results_df = pd.DataFrame(results_data)
+        st.table(results_df)
 
     # 数据下载 - 包含所有情况的数据
     if all_results:
