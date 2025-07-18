@@ -565,19 +565,6 @@ try:
         ax2.plot(L_no_inh, rates_no_inh, 'b--', linewidth=2.5,
                  label=t["no_inhibition"])
 
-        # 找到无抑制最大反应速率及其发生时间
-        max_rate_idx_no_inh = np.argmax(rates_no_inh)
-        max_rate_no_inh = rates_no_inh[max_rate_idx_no_inh]
-        max_rate_time_no_inh = t_hour_no_inh[max_rate_idx_no_inh]
-
-        # 标注无抑制最大速率（向上）
-        annotation_text_no_inh = f'{t["no_inhibition"]} 最大速率: {max_rate_no_inh:.2f} mM/h' if lang == "zh" else f'{t["no_inhibition"]} Max rate: {max_rate_no_inh:.2f} mM/h'
-        ax2.annotate(annotation_text_no_inh,
-                     xy=(L_no_inh[max_rate_idx_no_inh], max_rate_no_inh),
-                     xytext=(L_no_inh[max_rate_idx_no_inh] + 0.05 * L0, max_rate_no_inh * 1.1),
-                     arrowprops=dict(arrowstyle='->', color='blue'),
-                     fontsize=10, fontproperties=zh_font if lang == "zh" else None)
-
         # 如果选择了抑制类型，添加第一个抑制类型的结果
         if inhibition_types:
             # 获取第一个抑制类型
@@ -596,21 +583,34 @@ try:
                 ax2.plot(L, rates, color=colors[key], linewidth=2.5,
                          label=first_itype)
 
-                # 找到抑制最大反应速率及其发生时间
+                # 找到最大反应速率及其发生时间（抑制类型）
                 max_rate_idx = np.argmax(rates)
                 max_rate = rates[max_rate_idx]
                 max_rate_time = t_hour[max_rate_idx]
 
-                # 标注抑制最大速率（向下）
+                # 标注最大速率 - 修改为向下标注
                 annotation_text = f'最大速率: {max_rate:.2f} mM/h' if lang == "zh" else f'Max rate: {max_rate:.2f} mM/h'
                 ax2.annotate(annotation_text,
                              xy=(L[max_rate_idx], max_rate),
-                             xytext=(L[max_rate_idx] - 0.05 * L0, max_rate * 0.9),
+                             xytext=(L[max_rate_idx] + 0.05 * L0, max_rate * 0.9),  # 修改为0.9，向下标注
                              arrowprops=dict(arrowstyle='->', color='red'),
                              fontsize=10, fontproperties=zh_font if lang == "zh" else None)
 
-                # 显示抑制最大速率信息
+                # 显示最大速率信息
                 st.markdown(t["max_rate"].format(max_rate, max_rate_time))
+
+        # 找到最大反应速率及其发生时间（无抑制）
+        max_rate_idx_no_inh = np.argmax(rates_no_inh)
+        max_rate_no_inh = rates_no_inh[max_rate_idx_no_inh]
+        max_rate_time_no_inh = t_hour_no_inh[max_rate_idx_no_inh]
+
+        # 标注最大速率（无抑制） - 保持向上标注
+        annotation_text_no_inh = f'{t["no_inhibition"]} 最大速率: {max_rate_no_inh:.2f} mM/h' if lang == "zh" else f'{t["no_inhibition"]} Max rate: {max_rate_no_inh:.2f} mM/h'
+        ax2.annotate(annotation_text_no_inh,
+                     xy=(L_no_inh[max_rate_idx_no_inh], max_rate_no_inh),
+                     xytext=(L_no_inh[max_rate_idx_no_inh] + 0.05 * L0, max_rate_no_inh * 1.1),  # 保持1.1，向上标注
+                     arrowprops=dict(arrowstyle='->', color='blue'),
+                     fontsize=10, fontproperties=zh_font if lang == "zh" else None)
 
         # 如果没有选择抑制类型，显示无抑制的最大速率信息
         if not inhibition_types:
@@ -632,18 +632,19 @@ try:
         ax2.set_ylim([0, y_max])
 
         for spine in ax2.spines.values():
-            spine.set_lineleur(2.5)
+            spine.set_linewidth(2.5)
         st.pyplot(fig2)
 
     # Lineweaver-Burk 图表 - 始终显示
     st.subheader(t["lb_chart"])
     if all_results:  # 只要有无抑制结果就执行
-        # 如果没有选择ated any inhibition types, only show no inhibition
+        # 如果没有选择抑制类型，只显示无抑制情况
         if not inhibition_types:
-            # Only plot no inhibition line
-            Gal_fixed = st.slider(t["fixed_galactose"], 0.0, 200.0, 100.0)
+            # 只绘制无抑制线
             S_range = np.linspace(1, 500, 20)
             v_no_inh = Vmax * S_range / (Km + S_range)
+            
+            # 计算1/[S]和1/v
             inv_S = 1 / S_range
             inv_v_no_inh = 1 / v_no_inh
 
@@ -654,21 +655,23 @@ try:
             ax_lb.plot(x_fit_no_inh, y_fit_no_inh, color='#4E6691', linewidth=2.5,
                        label="无抑制剂" if lang == "zh" else "No Inhibitor")
 
-            # Calculate intercepts
+            # 计算截距
             y_intercept_no_inh = p_no_inh[1]
             x_intercept_no_inh = -p_no_inh[1] / p_no_inh[0]
 
-            # Plot intercepts
+            # 绘制截距点
             ax_lb.plot(0, y_intercept_no_inh, 'go', markersize=8, label="截距点" if lang == "zh" else "Intercepts")
             ax_lb.plot(x_intercept_no_inh, 0, 'b*', markersize=10)
 
-            # Annotate intercepts
+            # 标注y轴截距（1/Vmax）
             ax_lb.annotate(r'$\frac{1}{V_{max}}$',
                            xy=(0, y_intercept_no_inh),
                            xytext=(0.01, y_intercept_no_inh - 1),
                            arrowprops=dict(arrowstyle='->', color='green'),
                            fontsize=12, color='green',
                            fontproperties=zh_font if lang == "zh" else None)
+
+            # 标注x轴截距（-1/Km）
             ax_lb.annotate(r'$-\frac{1}{K_m}$',
                            xy=(x_intercept_no_inh, 0),
                            xytext=(x_intercept_no_inh, -1.5),
@@ -677,7 +680,8 @@ try:
                            fontproperties=zh_font if lang == "zh" else None)
 
             ax_lb.set_xlim(-0.05, 0.1)
-            ax_lb.set_ylim(0, 20)
+            ax_lb.set_ylim(0, 20)  # 固定Y轴范围为0到20
+
             ax_lb.set_xlabel("1 / [S] (1/mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
             ax_lb.set_ylabel("1 / v (hour/mM)", fontsize=12, fontproperties=zh_font if lang == "zh" else None)
             title = "Lineweaver-Burk (无抑制)" if lang == "zh" else "Lineweaver-Burk (No Inhibition)"
@@ -687,15 +691,9 @@ try:
             for spine in ax_lb.spines.values():
                 spine.set_linewidth(2.5)
             st.pyplot(fig_lb)
-
-            # No explanation needed for no inhibition case
+            
         else:
-            # Existing code for inhibition types
-            # (Keep the original code for when inhibition types are selected)
-            # Since the user didn't request changes here, I'll assume it's correct
-            # But for completeness, I'll include the original logic
-
-            # Use the first selected inhibition type
+            # 使用第一个选择的抑制类型
             first_itype = inhibition_types[0]
             if first_itype == t["competitive"]:
                 key = "competitive"
@@ -723,7 +721,7 @@ try:
                 v_no_inh = Vmax * S_range / (Km + S_range)
                 v_inh = Vmax * S_range / (Km + S_range * (1 + Gal_fixed / Ki))
 
-            # Calculate 1/[S] and 1/v
+            # 计算1/[S]和1/v
             inv_S = 1 / S_range
             inv_v_no_inh = 1 / v_no_inh
             inv_v_inh = 1 / v_inh
@@ -742,93 +740,68 @@ try:
                        label=f"{display_key}抑制" if lang == "zh" else f"{display_key} Inhibition")
 
             ax_lb.set_xlim(-0.05, 0.1)
-            ax_lb.set_ylim(0, 20)
 
-            # Calculate intercepts
+            # 修改Y轴范围为0~20
+            ax_lb.set_ylim(0, 20)  # 固定Y轴范围为0到20
+
+            # 计算截距
             y_intercept_no_inh = p_no_inh[1]
             y_intercept_inh = p_inh[1]
             x_intercept_no_inh = -p_no_inh[1] / p_no_inh[0]
             x_intercept_inh = -p_inh[1] / p_inh[0]
 
-            # Plot intercepts
+            # 绘制截距点
             ax_lb.plot(0, y_intercept_no_inh, 'go', markersize=8, label="截距点" if lang == "zh" else "Intercepts")
             ax_lb.plot(0, y_intercept_inh, 'ro', markersize=8)
             ax_lb.plot(x_intercept_no_inh, 0, 'b*', markersize=10)
             ax_lb.plot(x_intercept_inh, 0, 'r*', markersize=10)
 
-            # Annotate intercepts based on inhibition type
+            # 统一标注格式（与竞争性抑制相同）
+            # 标注y轴截距（1/Vmax）
+            ax_lb.annotate(r'$\frac{1}{V_{max}}$',
+                           xy=(0, y_intercept_no_inh),
+                           xytext=(0.01, y_intercept_no_inh - 1),
+                           arrowprops=dict(arrowstyle='->', color='green'),
+                           fontsize=12, color='green',
+                           fontproperties=zh_font if lang == "zh" else None)
+
+            # 标注有抑制的y轴截距
             if key == "competitive":
-                # Competitive: same y-intercept
-                ax_lb.annotate(r'$\frac{1}{V_{max}}$',
-                               xy=(0, y_intercept_no_inh),
-                               xytext=(0.01, y_intercept_no_inh - 1),
-                               arrowprops=dict(arrowstyle='->', color='green'),
-                               fontsize=12, color='green',
-                               fontproperties=zh_font if lang == "zh" else None)
+                # 竞争性抑制：y轴截距不变
                 ax_lb.annotate(r'$\frac{1}{V_{max}}$',
                                xy=(0, y_intercept_inh),
                                xytext=(0.01, y_intercept_inh + 0.5),
                                arrowprops=dict(arrowstyle='->', color='red'),
                                fontsize=12, color='red',
                                fontproperties=zh_font if lang == "zh" else None)
-                ax_lb.annotate(r'$-\frac{1}{K_m}$',
-                               xy=(x_intercept_no_inh, 0),
-                               xytext=(x_intercept_no_inh, -1.5),
-                               arrowprops=dict(arrowstyle='->', color='blue'),
-                               fontsize=12, color='blue',
-                               fontproperties=zh_font if lang == "zh" else None)
-                ax_lb.annotate(r'$-\frac{1}{K_m^{app}}$',
-                               xy=(x_intercept_inh, 0),
-                               xytext=(x_intercept_inh, -1.5),
-                               arrowprops=dict(arrowstyle='->', color='red'),
-                               fontsize=12, color='red',
-                               fontproperties=zh_font if lang == "zh" else None)
-            elif key == "non_competitive":
-                # Non-competitive: same x-intercept
-                ax_lb.annotate(r'$\frac{1}{V_{max}}$',
-                               xy=(0, y_intercept_no_inh),
-                               xytext=(0.01, y_intercept_no_inh - 1),
-                               arrowprops=dict(arrowstyle='->', color='green'),
-                               fontsize=12, color='green',
-                               fontproperties=zh_font if lang == "zh" else None)
+            else:
+                # 非竞争性和反竞争性抑制：y轴截距改变
                 ax_lb.annotate(r'$\frac{1}{V_{max}^{app}}$',
                                xy=(0, y_intercept_inh),
                                xytext=(0.01, y_intercept_inh + 0.5),
                                arrowprops=dict(arrowstyle='->', color='red'),
                                fontsize=12, color='red',
                                fontproperties=zh_font if lang == "zh" else None)
-                ax_lb.annotate(r'$-\frac{1}{K_m}$',
-                               xy=(x_intercept_no_inh, 0),
-                               xytext=(x_intercept_no_inh, -1.5),
-                               arrowprops=dict(arrowstyle='->', color='blue'),
-                               fontsize=12, color='blue',
-                               fontproperties=zh_font if lang == "zh" else None)
+
+            # 标注x轴截距（-1/Km）
+            ax_lb.annotate(r'$-\frac{1}{K_m}$',
+                           xy=(x_intercept_no_inh, 0),
+                           xytext=(x_intercept_no_inh, -1.5),
+                           arrowprops=dict(arrowstyle='->', color='blue'),
+                           fontsize=12, color='blue',
+                           fontproperties=zh_font if lang == "zh" else None)
+
+            # 标注有抑制的x轴截距
+            if key == "non_competitive":
+                # 非竞争性抑制：x轴截距不变
                 ax_lb.annotate(r'$-\frac{1}{K_m}$',
                                xy=(x_intercept_inh, 0),
                                xytext=(x_intercept_inh, -1.5),
                                arrowprops=dict(arrowstyle='->', color='red'),
                                fontsize=12, color='red',
                                fontproperties=zh_font if lang == "zh" else None)
-            else:  # uncompetitive
-                # Uncompetitive: parallel lines
-                ax_lb.annotate(r'$\frac{1}{V_{max}}$',
-                               xy=(0, y_intercept_no_inh),
-                               xytext=(0.01, y_intercept_no_inh - 1),
-                               arrowprops=dict(arrowstyle='->', color='green'),
-                               fontsize=12, color='green',
-                               fontproperties=zh_font if lang == "zh" else None)
-                ax_lb.annotate(r'$\frac{1}{V_{max}^{app}}$',
-                               xy=(0, y_intercept_inh),
-                               xytext=(0.01, y_intercept_inh + 0.5),
-                               arrowprops=dict(arrowstyle='->', color='red'),
-                               fontsize=12, color='red',
-                               fontproperties=zh_font if lang == "zh" else None)
-                ax_lb.annotate(r'$-\frac{1}{K_m}$',
-                               xy=(x_intercept_no_inh, 0),
-                               xytext=(x_intercept_no_inh, -1.5),
-                               arrowprops=dict(arrowstyle='->', color='blue'),
-                               fontsize=12, color='blue',
-                               fontproperties=zh_font if lang == "zh" else None)
+            else:
+                # 竞争性和反竞争性抑制：x轴截距改变
                 ax_lb.annotate(r'$-\frac{1}{K_m^{app}}$',
                                xy=(x_intercept_inh, 0),
                                xytext=(x_intercept_inh, -1.5),
