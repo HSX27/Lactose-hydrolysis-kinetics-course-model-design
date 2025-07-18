@@ -556,6 +556,7 @@ try:
         )
 
     # 反应速率分析图 - 始终显示无抑制情况
+    # 反应速率分析图 - 始终显示无抑制情况
     st.subheader(t["rate_analysis"])
     if all_results:  # 只要有无抑制结果就执行
         # 使用无抑制结果
@@ -564,6 +565,10 @@ try:
         fig2, ax2 = plt.subplots(figsize=(10, 6))
         ax2.plot(L_no_inh, rates_no_inh, 'b--', linewidth=2.5,
                  label=t["no_inhibition"])
+
+        # 初始化第一个抑制类型的最大速率和时间
+        max_rate_inh = None
+        max_rate_time_inh = None
 
         # 如果选择了抑制类型，添加第一个抑制类型的结果
         if inhibition_types:
@@ -585,19 +590,16 @@ try:
 
                 # 找到最大反应速率及其发生时间（抑制类型）
                 max_rate_idx = np.argmax(rates)
-                max_rate = rates[max_rate_idx]
-                max_rate_time = t_hour[max_rate_idx]
+                max_rate_inh = rates[max_rate_idx]
+                max_rate_time_inh = t_hour[max_rate_idx]
 
                 # 标注最大速率 - 修改为向下标注
-                annotation_text = f'最大速率: {max_rate:.2f} mM/h' if lang == "zh" else f'Max rate: {max_rate:.2f} mM/h'
+                annotation_text = f'最大速率: {max_rate_inh:.2f} mM/h' if lang == "zh" else f'Max rate: {max_rate_inh:.2f} mM/h'
                 ax2.annotate(annotation_text,
-                             xy=(L[max_rate_idx], max_rate),
-                             xytext=(L[max_rate_idx] + 0.05 * L0, max_rate * 0.9),  # 修改为0.9，向下标注
+                             xy=(L[max_rate_idx], max_rate_inh),
+                             xytext=(L[max_rate_idx] + 0.05 * L0, max_rate_inh * 0.9),  # 修改为0.9，向下标注
                              arrowprops=dict(arrowstyle='->', color='red'),
                              fontsize=10, fontproperties=zh_font if lang == "zh" else None)
-
-                # 显示最大速率信息
-                st.markdown(t["max_rate"].format(max_rate, max_rate_time))
 
         # 找到最大反应速率及其发生时间（无抑制）
         max_rate_idx_no_inh = np.argmax(rates_no_inh)
@@ -612,9 +614,34 @@ try:
                      arrowprops=dict(arrowstyle='->', color='blue'),
                      fontsize=10, fontproperties=zh_font if lang == "zh" else None)
 
-        # 如果没有选择抑制类型，显示无抑制的最大速率信息
-        if not inhibition_types:
-            st.markdown(f"{t['no_inhibition']} {t['max_rate'].format(max_rate_no_inh, max_rate_time_no_inh)}")
+        # 设置图表属性
+        ax2.set_xlabel(t["substrate_label"], fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+        ax2.set_ylabel(t["rate_label"], fontsize=12, fontproperties=zh_font if lang == "zh" else None)
+        title = f"反应速率 vs. 底物浓度" if lang == "zh" else "Reaction Rate vs. Substrate Concentration"
+        ax2.set_title(title, fontsize=14, fontproperties=zh_font if lang == "zh" else None)
+        ax2.grid(True, linestyle='--', alpha=0.7)
+        ax2.legend(loc='best', prop=zh_font if lang == "zh" else None)
+        ax2.set_xlim([0, L0])
+
+        # 设置Y轴范围
+        y_max = max(rates_no_inh) * 1.2
+        if inhibition_types and key in all_results:
+            y_max = max(y_max, max(rates) * 1.2)
+        ax2.set_ylim([0, y_max])
+
+        for spine in ax2.spines.values():
+            spine.set_linewidth(2.5)
+        st.pyplot(fig2)
+
+        # 显示最大速率信息
+        # 总是显示无抑制的最大速率
+        st.markdown(f"**{t['no_inhibition']}**: " +
+                    t["max_rate"].format(max_rate_no_inh, max_rate_time_no_inh))
+
+        # 如果选择了抑制类型，显示第一个抑制类型的最大速率
+        if inhibition_types and key in all_results and max_rate_inh is not None:
+            st.markdown(f"**{inhibition_types[0]}**: " +
+                        t["max_rate"].format(max_rate_inh, max_rate_time_inh))
 
         # 设置图表属性
         ax2.set_xlabel(t["substrate_label"], fontsize=12, fontproperties=zh_font if lang == "zh" else None)
@@ -643,7 +670,7 @@ try:
             # 只绘制无抑制线
             S_range = np.linspace(1, 500, 20)
             v_no_inh = Vmax * S_range / (Km + S_range)
-            
+
             # 计算1/[S]和1/v
             inv_S = 1 / S_range
             inv_v_no_inh = 1 / v_no_inh
@@ -691,7 +718,7 @@ try:
             for spine in ax_lb.spines.values():
                 spine.set_linewidth(2.5)
             st.pyplot(fig_lb)
-            
+
         else:
             # 使用第一个选择的抑制类型
             first_itype = inhibition_types[0]
